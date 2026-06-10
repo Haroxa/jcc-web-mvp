@@ -20,6 +20,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+  overflow-x: hidden;
 }
 
 button,
@@ -29,8 +30,12 @@ textarea {
   font: inherit;
 }
 
+.action-button,
 button,
 .file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 36px;
   border: 1px solid var(--accent);
   border-radius: 6px;
@@ -42,6 +47,7 @@ button,
 }
 
 button:hover,
+.action-button:hover,
 .file-button:hover {
   filter: brightness(0.96);
 }
@@ -50,6 +56,10 @@ button.danger {
   border-color: var(--danger);
   background: #fff;
   color: var(--danger);
+}
+
+.action-button {
+  min-width: 96px;
 }
 
 button.small {
@@ -114,6 +124,7 @@ button.small {
 
 .panel {
   display: none;
+  min-width: 0;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -228,6 +239,7 @@ label select {
 }
 
 .lock-summary > div {
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
@@ -238,14 +250,41 @@ label select {
   margin-bottom: 6px;
 }
 
+.lock-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.segmented button {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--text);
+}
+
+.segmented button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .library-grid {
   display: grid;
   grid-template-columns: 0.85fr 1.15fr;
   gap: 18px;
+  min-width: 0;
 }
 
 .library-section,
 .settings-box {
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
@@ -279,6 +318,7 @@ label select {
 .settings-list {
   display: grid;
   max-height: 320px;
+  max-width: 100%;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -303,6 +343,7 @@ label select {
   grid-template-columns: 64px 1fr 1fr;
   gap: 8px;
   align-items: center;
+  min-width: 520px;
 }
 
 .player-library-head,
@@ -330,8 +371,9 @@ label select {
 }
 
 .card-library {
-  display: grid;
+  display: block;
   max-height: 420px;
+  max-width: 100%;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -343,6 +385,7 @@ label select {
   grid-template-columns: 64px 1fr 120px 1fr 1fr auto;
   gap: 8px;
   align-items: center;
+  min-width: 920px;
 }
 
 .card-library-row {
@@ -375,6 +418,7 @@ label select {
 }
 
 .table-wrap {
+  max-width: 100%;
   overflow-x: auto;
 }
 
@@ -417,6 +461,11 @@ tr.eliminated {
   color: var(--accent);
   padding: 4px 8px;
   font-size: 12px;
+  white-space: nowrap;
+}
+
+.summary-tags {
+  line-height: 1.9;
 }
 
 .tag button {
@@ -495,24 +544,21 @@ tr.eliminated {
     grid-template-columns: 1fr;
   }
 
+  .lock-tools {
+    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
   .settings-grid {
     grid-template-columns: 1fr;
   }
 
-  .library-grid,
-  .player-library-head,
-  .player-library-row,
-  .card-library-head,
-  .card-library-row {
+  .library-grid {
     grid-template-columns: 1fr;
-  }
-
-  .player-library-head,
-  .card-library-head {
-    display: none;
   }
 
   .settings-list {
-    grid-template-columns: 1fr;
+    display: block;
   }
 }

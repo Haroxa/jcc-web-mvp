@@ -13,12 +13,12 @@
       <p>截图、锁牌、存票的本地记录工具。非官方项目，数据保存在当前浏览器。</p>
     </div>
     <div class="top-actions">
-      <button id="exportData" type="button">导出数据</button>
-      <label class="file-button">
+      <button id="exportData" class="action-button" type="button">导出数据</button>
+      <label class="action-button file-button">
         导入数据
         <input id="importData" type="file" accept="application/json">
       </label>
-      <button id="resetData" class="danger" type="button">清空本地数据</button>
+      <button id="resetData" class="action-button danger" type="button">清空本地数据</button>
     </div>
   </header>
 
@@ -79,6 +79,16 @@
         <div>
           <strong>可用</strong>
           <span id="availableCardsText">五费1、五费2、五费3、五费4、五费5、五费6、五费7、五费8</span>
+        </div>
+      </div>
+
+      <div class="lock-tools">
+        <strong>添加筛选</strong>
+        <div class="segmented" id="cardCategoryFilter" aria-label="五费分类筛选">
+          <button class="active" data-card-filter="all" type="button">全部</button>
+          <button data-card-filter="normal" type="button">正常五费</button>
+          <button data-card-filter="unlocked" type="button">解锁五费</button>
+          <button data-card-filter="optional" type="button">可选五费</button>
         </div>
       </div>
 

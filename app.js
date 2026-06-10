@@ -36,6 +36,7 @@ const initialState = {
 };
 
 let state = loadState();
+let lockCardFilter = "all";
 
 function loadState() {
   try {
@@ -214,6 +215,14 @@ function activeCardNames() {
   return activeCards().map((card) => card.name);
 }
 
+function filteredActiveCards() {
+  return activeCards().filter((card) => lockCardFilter === "all" || card.category === lockCardFilter);
+}
+
+function filteredActiveCardNames() {
+  return filteredActiveCards().map((card) => card.name);
+}
+
 function playerNames() {
   return state.players.map((player, index) => player.name || defaultPlayers[index]);
 }
@@ -238,20 +247,43 @@ function ensureLockSlots() {
 
 function cardLabel(cardName) {
   const card = state.cards.find((item) => item.name === cardName);
+  return card ? card.name : cardName;
+}
+
+function cardTitle(cardName) {
+  const card = state.cards.find((item) => item.name === cardName);
   if (!card) return cardName;
-  return card.category === "normal" ? card.name : `${card.name}（${cardCategories[card.category]}）`;
+  const parts = [cardCategories[card.category] || "正常五费", ...card.tags];
+  return `${card.name}：${parts.join("、")}`;
 }
 
 function categoryClass(category) {
   return `category-${category || "normal"}`;
 }
 
+function cardTagHtml(cardName, options = {}) {
+  const card = state.cards.find((item) => item.name === cardName);
+  const removeButton = options.remove
+    ? `<button data-index="${options.index}" data-remove-card="${escapeHtml(cardName)}" type="button" aria-label="移除${escapeHtml(cardName)}">×</button>`
+    : "";
+  return `<span class="tag ${categoryClass(card?.category)}" title="${escapeHtml(cardTitle(cardName))}">${escapeHtml(cardLabel(cardName))}${removeButton}</span>`;
+}
+
+function cardTagListHtml(cards, emptyText) {
+  return cards.length
+    ? `<div class="card-tags summary-tags">${cards.map((card) => cardTagHtml(card)).join("")}</div>`
+    : `<span class="meta">${emptyText}</span>`;
+}
+
 function renderLocks() {
   ensureLockSlots();
   const used = lockedCards();
   const available = activeCardNames().filter((card) => !used.includes(card));
-  document.querySelector("#lockedCardsText").textContent = used.length ? used.join("、") : "暂无";
-  document.querySelector("#availableCardsText").textContent = available.length ? available.join("、") : "暂无";
+  document.querySelector("#lockedCardsText").innerHTML = cardTagListHtml(used, "暂无");
+  document.querySelector("#availableCardsText").innerHTML = cardTagListHtml(available, "暂无");
+  document.querySelectorAll("[data-card-filter]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.cardFilter === lockCardFilter);
+  });
 
   const ordered = state.locks
     .map((player, index) => ({ ...player, index, name: activePlayerNames()[index] }))
@@ -316,12 +348,9 @@ function renderLocks() {
 }
 
 function lockRowHtml(player, used) {
-  const availableForPlayer = activeCardNames().filter((card) => !used.includes(card) || player.cards.includes(card));
+  const availableForPlayer = filteredActiveCardNames().filter((card) => !used.includes(card) || player.cards.includes(card));
   const cardTags = player.cards.length
-    ? player.cards.map((card) => {
-      const cardInfo = state.cards.find((item) => item.name === card);
-      return `<span class="tag ${categoryClass(cardInfo?.category)}">${escapeHtml(cardLabel(card))}<button data-index="${player.index}" data-remove-card="${escapeHtml(card)}" type="button">×</button></span>`;
-    }).join("")
+    ? player.cards.map((card) => cardTagHtml(card, { remove: true, index: player.index })).join("")
     : `<span class="meta">未锁牌</span>`;
 
   return `
@@ -574,6 +603,13 @@ function escapeHtml(value) {
 
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => switchTab(button.dataset.tab));
+});
+
+document.querySelector("#cardCategoryFilter").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-card-filter]");
+  if (!button) return;
+  lockCardFilter = button.dataset.cardFilter;
+  renderLocks();
 });
 
 document.querySelector("#screenshotForm").addEventListener("submit", async (event) => {
