@@ -24,7 +24,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -138,13 +139,20 @@ button.small {
 
 .search,
 input,
-select {
+select,
+textarea {
   min-height: 36px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
   color: var(--text);
   padding: 7px 10px;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.5;
 }
 
 .form-grid {
@@ -230,12 +238,23 @@ label select {
   margin-bottom: 6px;
 }
 
+.library-grid {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  gap: 18px;
+}
+
+.library-section,
 .settings-box {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
-  margin-bottom: 16px;
   padding: 12px;
+}
+
+.library-section h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
 }
 
 .settings-box summary {
@@ -267,6 +286,38 @@ label select {
   display: grid;
   gap: 10px;
   align-self: end;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+
+.card-library {
+  display: grid;
+  gap: 8px;
+}
+
+.card-library-head,
+.card-library-row {
+  display: grid;
+  grid-template-columns: 1fr 120px 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.card-library-head {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.card-library-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
 }
 
 .table-wrap {
@@ -392,6 +443,16 @@ tr.eliminated {
 
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .library-grid,
+  .card-library-head,
+  .card-library-row {
+    grid-template-columns: 1fr;
+  }
+
+  .card-library-head {
+    display: none;
   }
 
   .settings-list {

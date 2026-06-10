@@ -2,11 +2,25 @@ const STORAGE_KEY = "jcc_web_mvp_state_v1";
 const defaultPlayers = Array.from({ length: 8 }, (_, index) => `玩家${index + 1}`);
 const defaultCards = Array.from({ length: 8 }, (_, index) => `五费${index + 1}`);
 
+const defaultPlayerObjects = defaultPlayers.map((name, index) => ({
+  id: `player-${index + 1}`,
+  name,
+  note: "",
+}));
+
+const defaultCardObjects = defaultCards.map((name, index) => ({
+  id: `card-${index + 1}`,
+  name,
+  category: "normal",
+  tags: [],
+  note: "",
+}));
+
 const initialState = {
   screenshots: [],
-  cards: [...defaultCards],
-  locks: defaultPlayers.map((name) => ({
-    name,
+  players: structuredClone(defaultPlayerObjects),
+  cards: structuredClone(defaultCardObjects),
+  locks: defaultPlayers.map(() => ({
     status: "alive",
     cards: [],
     note: "",
@@ -20,9 +34,12 @@ function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (!saved) return structuredClone(initialState);
+    const players = normalizePlayers(saved.players, saved.locks);
+    const cards = normalizeCards(saved.cards);
     return {
       screenshots: Array.isArray(saved.screenshots) ? saved.screenshots : [],
-      cards: normalizeCards(saved.cards),
+      players,
+      cards,
       locks: normalizeLocks(saved.locks),
       ticketRecords: Array.isArray(saved.ticketRecords) ? saved.ticketRecords : [],
     };
@@ -31,20 +48,68 @@ function loadState() {
   }
 }
 
+function normalizePlayers(players, locks) {
+  if (Array.isArray(players) && players.length) {
+    return Array.from({ length: 8 }, (_, index) => {
+      const player = players[index] || {};
+      return {
+      id: player.id || `player-${index + 1}`,
+      name: String(player.name || "").trim() || defaultPlayers[index] || `玩家${index + 1}`,
+      note: player.note || "",
+      };
+    });
+  }
+
+  if (Array.isArray(locks) && locks.length) {
+    return Array.from({ length: 8 }, (_, index) => {
+      const player = locks[index] || {};
+      return {
+      id: `player-${index + 1}`,
+      name: String(player.name || "").trim() || defaultPlayers[index] || `玩家${index + 1}`,
+      note: "",
+      };
+    });
+  }
+
+  return structuredClone(defaultPlayerObjects);
+}
+
 function normalizeCards(cards) {
-  return Array.isArray(cards) && cards.length === 8
-    ? cards.map((card, index) => String(card || "").trim() || defaultCards[index])
-    : [...defaultCards];
+  if (!Array.isArray(cards) || !cards.length) return structuredClone(defaultCardObjects);
+  return cards.map((card, index) => {
+    if (typeof card === "string") {
+      return {
+        id: `card-${index + 1}`,
+        name: card.trim() || defaultCards[index] || `五费${index + 1}`,
+        category: "normal",
+        tags: [],
+        note: "",
+      };
+    }
+    return {
+      id: card.id || `card-${index + 1}`,
+      name: String(card.name || "").trim() || defaultCards[index] || `五费${index + 1}`,
+      category: card.category === "optional" ? "optional" : "normal",
+      tags: Array.isArray(card.tags) ? card.tags.map((tag) => String(tag).trim()).filter(Boolean) : parseTags(card.tags),
+      note: card.note || "",
+    };
+  });
 }
 
 function normalizeLocks(locks) {
   if (!Array.isArray(locks) || locks.length !== 8) return structuredClone(initialState.locks);
-  return locks.map((player, index) => ({
-    name: String(player.name || "").trim() || defaultPlayers[index],
+  return locks.map((player) => ({
     status: player.status === "eliminated" ? "eliminated" : "alive",
     cards: Array.isArray(player.cards) ? player.cards : [],
     note: player.note || "",
   }));
+}
+
+function parseTags(value) {
+  return String(value || "")
+    .split(/[,\s，、]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function saveState() {
@@ -126,14 +191,28 @@ function lockedCards() {
     .flatMap((player) => player.cards);
 }
 
+function cardNames() {
+  return state.cards.map((card) => card.name);
+}
+
+function playerNames() {
+  return state.players.map((player, index) => player.name || defaultPlayers[index]);
+}
+
+function cardLabel(cardName) {
+  const card = state.cards.find((item) => item.name === cardName);
+  if (!card) return cardName;
+  return card.category === "optional" ? `${card.name}（可选）` : card.name;
+}
+
 function renderLocks() {
   const used = lockedCards();
-  const available = state.cards.filter((card) => !used.includes(card));
+  const available = cardNames().filter((card) => !used.includes(card));
   document.querySelector("#lockedCardsText").textContent = used.length ? used.join("、") : "暂无";
   document.querySelector("#availableCardsText").textContent = available.length ? available.join("、") : "暂无";
 
   const ordered = state.locks
-    .map((player, index) => ({ ...player, index }))
+    .map((player, index) => ({ ...player, index, name: playerNames()[index] }))
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === "alive" ? -1 : 1;
       return a.index - b.index;
@@ -155,30 +234,6 @@ function renderLocks() {
       </tbody>
     </table>
   `;
-
-  document.querySelectorAll("[data-lock-name]").forEach((input) => {
-    input.addEventListener("change", (event) => {
-      const index = Number(event.target.dataset.index);
-      const previousName = state.locks[index].name || defaultPlayers[index];
-      const nextName = event.target.value.trim() || defaultPlayers[index];
-      const nextPlayers = ticketPlayers();
-      nextPlayers[index] = nextName;
-      if (hasDuplicate(nextPlayers)) {
-        alert("修改失败：玩家名不能重复。");
-        event.target.value = previousName;
-        return;
-      }
-      state.locks[index].name = nextName;
-      state.ticketRecords = state.ticketRecords.map((record) =>
-        record.player === previousName ? { ...record, player: nextName } : record
-      );
-      saveState();
-      renderSettings();
-      renderLocks();
-      renderTicketOptions();
-      renderTickets();
-    });
-  });
 
   document.querySelectorAll("[data-lock-status]").forEach((select) => {
     select.addEventListener("change", (event) => {
@@ -219,14 +274,14 @@ function renderLocks() {
 }
 
 function lockRowHtml(player, used) {
-  const availableForPlayer = state.cards.filter((card) => !used.includes(card) || player.cards.includes(card));
+  const availableForPlayer = cardNames().filter((card) => !used.includes(card) || player.cards.includes(card));
   const cardTags = player.cards.length
-    ? player.cards.map((card) => `<span class="tag">${card}<button data-index="${player.index}" data-remove-card="${card}" type="button">×</button></span>`).join("")
+    ? player.cards.map((card) => `<span class="tag">${escapeHtml(cardLabel(card))}<button data-index="${player.index}" data-remove-card="${escapeHtml(card)}" type="button">×</button></span>`).join("")
     : `<span class="meta">未锁牌</span>`;
 
   return `
     <tr class="${player.status === "eliminated" ? "eliminated" : ""}">
-      <td><input data-lock-name data-index="${player.index}" value="${escapeHtml(player.name)}"></td>
+      <td>${escapeHtml(player.name)}</td>
       <td>
         <select data-lock-status data-index="${player.index}">
           <option value="alive" ${player.status === "alive" ? "selected" : ""}>存活</option>
@@ -237,7 +292,7 @@ function lockRowHtml(player, used) {
       <td>
         <select data-add-card data-index="${player.index}" ${player.status === "eliminated" ? "disabled" : ""}>
           <option value="">选择五费</option>
-          ${availableForPlayer.filter((card) => !player.cards.includes(card)).map((card) => `<option value="${card}">${card}</option>`).join("")}
+          ${availableForPlayer.filter((card) => !player.cards.includes(card)).map((card) => `<option value="${escapeHtml(card)}">${escapeHtml(cardLabel(card))}</option>`).join("")}
         </select>
       </td>
       <td><input data-lock-note data-index="${player.index}" value="${escapeHtml(player.note || "")}" placeholder="例如：准备追三星"></td>
@@ -246,41 +301,63 @@ function lockRowHtml(player, used) {
 }
 
 function ticketPlayers() {
-  return state.locks.map((player, index) => player.name || defaultPlayers[index]);
+  return playerNames();
 }
 
-function renderSettings() {
-  document.querySelector("#playerSettings").innerHTML = state.locks
+function renderLibrary() {
+  document.querySelector("#playerSettings").innerHTML = state.players
     .map((player, index) => `
       <label>
         ${index + 1}号位
-        <input data-player-setting data-index="${index}" value="${escapeHtml(player.name || defaultPlayers[index])}">
+        <input data-player-setting data-index="${index}" value="${escapeHtml(player.name)}">
       </label>
     `)
     .join("");
 
-  document.querySelector("#cardSettings").innerHTML = state.cards
-    .map((card, index) => `
-      <label>
-        五费${index + 1}
-        <input data-card-setting data-index="${index}" value="${escapeHtml(card || defaultCards[index])}">
-      </label>
-    `)
-    .join("");
+  document.querySelector("#cardLibrary").innerHTML = `
+    <div class="card-library-head">
+      <span>名称</span>
+      <span>分类</span>
+      <span>标签</span>
+      <span>备注</span>
+      <span>操作</span>
+    </div>
+    ${state.cards.map((card, index) => cardLibraryRow(card, index)).join("")}
+  `;
 }
 
-function applyNameSettings(nextPlayers, nextCards) {
-  const previousPlayers = ticketPlayers();
-  const previousCards = [...state.cards];
+function cardLibraryRow(card, index) {
+  return `
+    <div class="card-library-row">
+      <input data-card-name data-index="${index}" value="${escapeHtml(card.name)}" placeholder="五费名称">
+      <select data-card-category data-index="${index}">
+        <option value="normal" ${card.category === "normal" ? "selected" : ""}>正常五费</option>
+        <option value="optional" ${card.category === "optional" ? "selected" : ""}>可选五费</option>
+      </select>
+      <input data-card-tags data-index="${index}" value="${escapeHtml(card.tags.join("、"))}" placeholder="例如：S14、主C">
+      <input data-card-note data-index="${index}" value="${escapeHtml(card.note || "")}" placeholder="备注">
+      <button class="danger small" data-delete-card data-index="${index}" type="button">删除</button>
+    </div>
+  `;
+}
 
-  state.locks.forEach((player, index) => {
-    player.name = nextPlayers[index] || defaultPlayers[index];
+function applyLibrarySettings(nextPlayers, nextCards) {
+  const previousPlayers = ticketPlayers();
+  const previousCards = cardNames();
+
+  state.players = nextPlayers.slice(0, 8).map((name, index) => ({
+    ...(state.players[index] || {}),
+    id: state.players[index]?.id || `player-${index + 1}`,
+    name: name || defaultPlayers[index],
+  }));
+
+  state.locks.forEach((player) => {
     player.cards = player.cards
       .map((card) => {
         const cardIndex = previousCards.indexOf(card);
-        return cardIndex >= 0 ? nextCards[cardIndex] : card;
+        return cardIndex >= 0 ? nextCards[cardIndex]?.name : card;
       })
-      .filter((card, index, cards) => nextCards.includes(card) && cards.indexOf(card) === index);
+      .filter((card, index, cards) => cardNamesFrom(nextCards).includes(card) && cards.indexOf(card) === index);
   });
 
   state.cards = nextCards;
@@ -290,8 +367,78 @@ function applyNameSettings(nextPlayers, nextCards) {
   });
 }
 
+function cardNamesFrom(cards) {
+  return cards.map((card) => card.name);
+}
+
 function hasDuplicate(values) {
   return new Set(values).size !== values.length;
+}
+
+function splitBatchText(text) {
+  return text
+    .split(/[\n,，、\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parsePlayerBatch(text) {
+  return [...new Set(splitBatchText(text))].slice(0, 8);
+}
+
+function parseCardBatch(text) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const parts = splitBatchText(line);
+      const categoryIndex = parts.findIndex((part) => part === "正常五费" || part === "可选五费");
+      const name = parts[0] || `五费${index + 1}`;
+      const category = categoryIndex >= 0 && parts[categoryIndex] === "可选五费" ? "optional" : "normal";
+      const tags = parts.filter((part, partIndex) => partIndex !== 0 && partIndex !== categoryIndex);
+      return {
+        id: `card-${Date.now()}-${index}`,
+        name,
+        category,
+        tags,
+        note: "",
+      };
+    });
+}
+
+function readPlayersFromInputs() {
+  return Array.from(document.querySelectorAll("[data-player-setting]"))
+    .map((input, index) => input.value.trim() || defaultPlayers[index]);
+}
+
+function readCardsFromInputs() {
+  return Array.from(document.querySelectorAll("[data-card-name]")).map((input, index) => ({
+    id: state.cards[index]?.id || `card-${Date.now()}-${index}`,
+    name: input.value.trim() || defaultCards[index] || `五费${index + 1}`,
+    category: document.querySelector(`[data-card-category][data-index="${index}"]`).value,
+    tags: parseTags(document.querySelector(`[data-card-tags][data-index="${index}"]`).value),
+    note: document.querySelector(`[data-card-note][data-index="${index}"]`).value.trim(),
+  }));
+}
+
+function saveLibrary(nextPlayers, nextCards) {
+  if (nextPlayers.length !== 8) {
+    alert("保存失败：当前版本需要 8 个玩家。");
+    return false;
+  }
+  if (!nextCards.length) {
+    alert("保存失败：至少需要 1 张五费卡。");
+    return false;
+  }
+  if (hasDuplicate(nextPlayers) || hasDuplicate(cardNamesFrom(nextCards))) {
+    alert("保存失败：玩家名和五费名称不能重复。");
+    return false;
+  }
+  applyLibrarySettings(nextPlayers, nextCards);
+  saveState();
+  renderAll();
+  return true;
 }
 
 function ticketBalances() {
@@ -396,8 +543,10 @@ document.querySelector("#importData").addEventListener("change", async (event) =
   if (!file) return;
   try {
     const imported = JSON.parse(await file.text());
+    const players = normalizePlayers(imported.players, imported.locks);
     state = {
       screenshots: Array.isArray(imported.screenshots) ? imported.screenshots : [],
+      players,
       cards: normalizeCards(imported.cards),
       locks: normalizeLocks(imported.locks),
       ticketRecords: Array.isArray(imported.ticketRecords) ? imported.ticketRecords : [],
@@ -418,8 +567,7 @@ document.querySelector("#resetData").addEventListener("click", () => {
 });
 
 document.querySelector("#resetLocks").addEventListener("click", () => {
-  state.locks = state.locks.map((player, index) => ({
-    name: player.name || defaultPlayers[index],
+  state.locks = state.locks.map(() => ({
     status: "alive",
     cards: [],
     note: "",
@@ -437,31 +585,71 @@ document.querySelector("#resetTickets").addEventListener("click", () => {
   renderTickets();
 });
 
-document.querySelector("#settingsForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const nextPlayers = Array.from(document.querySelectorAll("[data-player-setting]"))
-    .map((input, index) => input.value.trim() || defaultPlayers[index]);
-  const nextCards = Array.from(document.querySelectorAll("[data-card-setting]"))
-    .map((input, index) => input.value.trim() || defaultCards[index]);
-  if (hasDuplicate(nextPlayers) || hasDuplicate(nextCards)) {
-    alert("保存失败：玩家名和五费名称不能重复。");
+document.querySelector("#parsePlayers").addEventListener("click", () => {
+  const parsed = parsePlayerBatch(document.querySelector("#playerBatch").value);
+  if (!parsed.length) {
+    alert("没有解析到玩家名。");
     return;
   }
-  applyNameSettings(nextPlayers, nextCards);
+  const nextPlayers = [...parsed, ...defaultPlayers].slice(0, 8);
+  saveLibrary(nextPlayers, readCardsFromInputs());
+});
+
+document.querySelector("#savePlayers").addEventListener("click", () => {
+  saveLibrary(readPlayersFromInputs(), readCardsFromInputs());
+});
+
+document.querySelector("#parseCards").addEventListener("click", () => {
+  const parsed = parseCardBatch(document.querySelector("#cardBatch").value);
+  if (!parsed.length) {
+    alert("没有解析到五费卡。");
+    return;
+  }
+  saveLibrary(readPlayersFromInputs(), parsed);
+});
+
+document.querySelector("#addCard").addEventListener("click", () => {
+  state.cards.push({
+    id: `card-${Date.now()}`,
+    name: `五费${state.cards.length + 1}`,
+    category: "normal",
+    tags: [],
+    note: "",
+  });
   saveState();
   renderAll();
 });
 
-document.querySelector("#resetSettings").addEventListener("click", () => {
-  if (!confirm("确认恢复默认玩家名和五费名称？已有锁牌和存票记录会同步改回默认名称。")) return;
-  applyNameSettings([...defaultPlayers], [...defaultCards]);
+document.querySelector("#cardLibrary").addEventListener("change", () => {
+  saveLibrary(readPlayersFromInputs(), readCardsFromInputs());
+});
+
+document.querySelector("#cardLibrary").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-delete-card]");
+  if (!button) return;
+  if (state.cards.length <= 1) {
+    alert("至少保留 1 张五费卡。");
+    return;
+  }
+  const index = Number(button.dataset.index);
+  const cardName = state.cards[index].name;
+  if (!confirm(`确认删除「${cardName}」？已有锁牌中的这张卡也会被移除。`)) return;
+  state.cards.splice(index, 1);
+  state.locks.forEach((player) => {
+    player.cards = player.cards.filter((card) => card !== cardName);
+  });
   saveState();
   renderAll();
+});
+
+document.querySelector("#resetLibrary").addEventListener("click", () => {
+  if (!confirm("确认恢复默认玩家和五费资料？已有存票姓名和锁牌卡名会同步改回默认资料。")) return;
+  saveLibrary(defaultPlayers, structuredClone(defaultCardObjects));
 });
 
 function renderAll() {
   renderScreenshots();
-  renderSettings();
+  renderLibrary();
   renderLocks();
   renderTicketOptions();
   renderTickets();
