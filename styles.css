@@ -230,6 +230,45 @@ label select {
   margin-bottom: 6px;
 }
 
+.settings-box {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 16px;
+  padding: 12px;
+}
+
+.settings-box summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 16px;
+  align-items: start;
+  margin-top: 12px;
+}
+
+.settings-grid h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.settings-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.settings-actions {
+  display: grid;
+  gap: 10px;
+  align-self: end;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -348,6 +387,14 @@ tr.eliminated {
   }
 
   .lock-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-list {
     grid-template-columns: 1fr;
   }
 }

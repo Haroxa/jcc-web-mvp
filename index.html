@@ -70,6 +70,24 @@
         <button id="resetLocks" type="button">重置锁牌</button>
       </div>
 
+      <details class="settings-box">
+        <summary>玩家名单和五费名称设置</summary>
+        <form id="settingsForm" class="settings-grid">
+          <div>
+            <h3>玩家名单</h3>
+            <div id="playerSettings" class="settings-list"></div>
+          </div>
+          <div>
+            <h3>五费名称</h3>
+            <div id="cardSettings" class="settings-list"></div>
+          </div>
+          <div class="settings-actions">
+            <button type="submit">保存设置</button>
+            <button id="resetSettings" class="danger" type="button">恢复默认名单</button>
+          </div>
+        </form>
+      </details>
+
       <div class="lock-summary">
         <div>
           <strong>已锁</strong>

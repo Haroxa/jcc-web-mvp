@@ -74,6 +74,30 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-10 11:35 增加名单和五费名称设置
+
+#### 摘要
+
+- 记录 Cloudflare Pages 部署地址：`https://jcc-web-mvp.pages.dev/`。
+- 在锁牌管理中新增玩家名单和五费名称设置。
+- 五费名称会保存到本地数据，并参与导入导出。
+- 玩家名称会同步影响锁牌管理和存票管理。
+- 更新 `README.md`、`docs/项目状态.md` 和 `docs/风险清单.md`。
+
+#### 说明
+
+这次继续保持纯静态、本地保存，不引入登录、后端、数据库或云同步。旧数据会自动兼容：没有五费名称配置的旧浏览器数据会继续使用默认 `五费1` 到 `五费8`。
+
+#### 本次变更的 Git 命令
+
+```powershell
+git status --short --branch
+git diff
+git add index.html styles.css app.js README.md CHANGELOG.md docs/项目状态.md docs/风险清单.md
+git commit -m "增加名单和五费名称设置"
+git log --oneline -3
+```
+
 ### 2026-06-10 11:06 建立最小项目文档
 
 #### 摘要
