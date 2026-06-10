@@ -8,8 +8,11 @@
 - `styles.css`：页面样式。
 - `app.js`：截图、锁牌、存票、本地保存、导入导出逻辑。
 - `README.md`：项目说明和使用方式。
+- `AGENTS.md`：Codex 在本项目中的工作规则。
 - `REVIEW.md`：前期执行复盘。
 - `CHANGELOG.md`：当前文件说明、常用 Git 命令和变更记录。
+- `docs/项目状态.md`：当前功能状态、未验证项和维护原则。
+- `docs/风险清单.md`：当前已知风险和发布前检查项。
 
 ## 常用 Git 命令
 
@@ -70,6 +73,30 @@ git show --stat
 用途：查看最近一次提交改动了哪些文件。
 
 ## 变更记录
+
+### 2026-06-10 11:06 建立最小项目文档
+
+#### 摘要
+
+- 新增项目专属 `AGENTS.md`。
+- 完善 `README.md`，补充项目用途、启动方式、技术栈和目录结构。
+- 新增 `docs/项目状态.md`，记录当前功能状态和未验证项。
+- 新增 `docs/风险清单.md`，记录本地数据、截图存储、公开部署等风险。
+- 更新 `CHANGELOG.md` 的当前文件说明和本次变更记录。
+
+#### 说明
+
+这次参考 Codex Knowledge 经验库中的项目规则模板、项目启动模板、Git 操作说明、任务结束检查清单、前端开发检查清单、项目状态模板和风险清单模板。落地时只保留适合当前纯静态网页 MVP 的内容，没有引入后端、支付、权限、数据库等当前项目不存在的复杂规则。
+
+#### 本次变更的 Git 命令
+
+```powershell
+git status --short --branch
+git diff
+git add AGENTS.md README.md CHANGELOG.md docs/项目状态.md docs/风险清单.md
+git commit -m "建立最小项目文档"
+git log --oneline -3
+```
 
 ### 2026-06-10 10:58 调整变更记录结构
 
