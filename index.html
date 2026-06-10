@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>水友赛记录助手 MVP</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>水友赛记录助手</h1>
+      <p>截图、锁牌、存票的本地记录工具。非官方项目，数据保存在当前浏览器。</p>
+    </div>
+    <div class="top-actions">
+      <button id="exportData" type="button">导出数据</button>
+      <label class="file-button">
+        导入数据
+        <input id="importData" type="file" accept="application/json">
+      </label>
+      <button id="resetData" class="danger" type="button">清空本地数据</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <nav class="tabs" aria-label="工具切换">
+      <button class="tab active" data-tab="screenshots" type="button">截图管理</button>
+      <button class="tab" data-tab="locks" type="button">锁牌管理</button>
+      <button class="tab" data-tab="tickets" type="button">存票管理</button>
+    </nav>
+
+    <section id="screenshots" class="panel active">
+      <div class="section-head">
+        <div>
+          <h2>截图管理</h2>
+          <p>记录精彩对局、结算图和备注，支持按玩家、标签、备注搜索。</p>
+        </div>
+        <input id="screenshotSearch" class="search" type="search" placeholder="搜索截图记录">
+      </div>
+
+      <form id="screenshotForm" class="form-grid">
+        <label>
+          截图
+          <input id="shotFile" type="file" accept="image/*" required>
+        </label>
+        <label>
+          玩家
+          <input id="shotPlayer" type="text" placeholder="例如：玩家1">
+        </label>
+        <label>
+          标签
+          <input id="shotTags" type="text" placeholder="结算、三星五费、翻盘">
+        </label>
+        <label class="wide">
+          备注
+          <input id="shotNote" type="text" placeholder="这局发生了什么">
+        </label>
+        <button type="submit">保存截图记录</button>
+      </form>
+
+      <div id="screenshotList" class="shot-grid"></div>
+    </section>
+
+    <section id="locks" class="panel">
+      <div class="section-head">
+        <div>
+          <h2>锁牌管理</h2>
+          <p>适合 8 人自定义追五费。淘汰后可释放该玩家已锁卡。</p>
+        </div>
+        <button id="resetLocks" type="button">重置锁牌</button>
+      </div>
+
+      <div class="lock-summary">
+        <div>
+          <strong>已锁</strong>
+          <span id="lockedCardsText">暂无</span>
+        </div>
+        <div>
+          <strong>可用</strong>
+          <span id="availableCardsText">五费1、五费2、五费3、五费4、五费5、五费6、五费7、五费8</span>
+        </div>
+      </div>
+
+      <div id="lockTable" class="table-wrap"></div>
+    </section>
+
+    <section id="tickets" class="panel">
+      <div class="section-head">
+        <div>
+          <h2>存票管理</h2>
+          <p>记录存票、取票和当前总票数，排行榜自动按余额排序。</p>
+        </div>
+        <button id="resetTickets" type="button">重置存票</button>
+      </div>
+
+      <form id="ticketForm" class="form-grid">
+        <label>
+          玩家
+          <select id="ticketPlayer"></select>
+        </label>
+        <label>
+          类型
+          <select id="ticketType">
+            <option value="deposit">存票</option>
+            <option value="withdraw">取票</option>
+          </select>
+        </label>
+        <label>
+          数量
+          <input id="ticketAmount" type="number" min="1" step="1" value="1" required>
+        </label>
+        <label class="wide">
+          备注
+          <input id="ticketNote" type="text" placeholder="例如：第 3 局结算">
+        </label>
+        <button type="submit">记录票数</button>
+      </form>
+
+      <div class="split">
+        <div>
+          <h3>余额排行</h3>
+          <div id="ticketRank" class="rank-list"></div>
+        </div>
+        <div>
+          <h3>操作记录</h3>
+          <div id="ticketHistory" class="history-list"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <template id="shotTemplate">
+    <article class="shot-card">
+      <img alt="截图预览">
+      <div>
+        <h3></h3>
+        <p class="meta"></p>
+        <p class="note"></p>
+        <button class="danger small" type="button">删除</button>
+      </div>
+    </article>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>
