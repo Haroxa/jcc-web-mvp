@@ -278,8 +278,10 @@ label select {
 
 .settings-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
-  gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }
 
 .settings-actions {
@@ -295,29 +297,81 @@ label select {
   margin: 10px 0 14px;
 }
 
+.player-library-head,
+.player-library-row {
+  display: grid;
+  grid-template-columns: 64px 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.player-library-head,
+.card-library-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px;
+}
+
+.player-library-row {
+  border-top: 1px solid var(--line);
+  padding: 8px;
+}
+
+.player-library-row input[type="checkbox"],
+.card-library-row input[type="checkbox"] {
+  width: 18px;
+  min-height: 18px;
+  justify-self: center;
+}
+
 .card-library {
   display: grid;
-  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }
 
 .card-library-head,
 .card-library-row {
   display: grid;
-  grid-template-columns: 1fr 120px 1fr 1fr auto;
+  grid-template-columns: 64px 1fr 120px 1fr 1fr auto;
   gap: 8px;
   align-items: center;
 }
 
-.card-library-head {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
+.card-library-row {
+  border-top: 1px solid var(--line);
+  padding: 8px;
 }
 
-.card-library-row {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px;
+.card-library-row select.category-normal,
+.tag.category-normal,
+.category-normal {
+  border-color: #176b5d;
+  background: #e8f3f1;
+  color: #176b5d;
+}
+
+.card-library-row select.category-unlocked,
+.tag.category-unlocked,
+.category-unlocked {
+  border-color: #b54708;
+  background: #fff4e5;
+  color: #9a5b00;
+}
+
+.card-library-row select.category-optional,
+.tag.category-optional,
+.category-optional {
+  border-color: #5751b5;
+  background: #eef0ff;
+  color: #42389d;
 }
 
 .table-wrap {
@@ -446,11 +500,14 @@ tr.eliminated {
   }
 
   .library-grid,
+  .player-library-head,
+  .player-library-row,
   .card-library-head,
   .card-library-row {
     grid-template-columns: 1fr;
   }
 
+  .player-library-head,
   .card-library-head {
     display: none;
   }

@@ -1,10 +1,16 @@
 const STORAGE_KEY = "jcc_web_mvp_state_v1";
 const defaultPlayers = Array.from({ length: 8 }, (_, index) => `玩家${index + 1}`);
 const defaultCards = Array.from({ length: 8 }, (_, index) => `五费${index + 1}`);
+const cardCategories = {
+  normal: "正常五费",
+  unlocked: "解锁五费",
+  optional: "可选五费",
+};
 
 const defaultPlayerObjects = defaultPlayers.map((name, index) => ({
   id: `player-${index + 1}`,
   name,
+  active: true,
   note: "",
 }));
 
@@ -12,6 +18,7 @@ const defaultCardObjects = defaultCards.map((name, index) => ({
   id: `card-${index + 1}`,
   name,
   category: "normal",
+  active: true,
   tags: [],
   note: "",
 }));
@@ -50,25 +57,21 @@ function loadState() {
 
 function normalizePlayers(players, locks) {
   if (Array.isArray(players) && players.length) {
-    return Array.from({ length: 8 }, (_, index) => {
-      const player = players[index] || {};
-      return {
+    return players.map((player, index) => ({
       id: player.id || `player-${index + 1}`,
       name: String(player.name || "").trim() || defaultPlayers[index] || `玩家${index + 1}`,
+      active: typeof player.active === "boolean" ? player.active : index < 8,
       note: player.note || "",
-      };
-    });
+    }));
   }
 
   if (Array.isArray(locks) && locks.length) {
-    return Array.from({ length: 8 }, (_, index) => {
-      const player = locks[index] || {};
-      return {
+    return locks.map((player, index) => ({
       id: `player-${index + 1}`,
       name: String(player.name || "").trim() || defaultPlayers[index] || `玩家${index + 1}`,
+      active: index < 8,
       note: "",
-      };
-    });
+    }));
   }
 
   return structuredClone(defaultPlayerObjects);
@@ -82,6 +85,7 @@ function normalizeCards(cards) {
         id: `card-${index + 1}`,
         name: card.trim() || defaultCards[index] || `五费${index + 1}`,
         category: "normal",
+        active: true,
         tags: [],
         note: "",
       };
@@ -89,15 +93,22 @@ function normalizeCards(cards) {
     return {
       id: card.id || `card-${index + 1}`,
       name: String(card.name || "").trim() || defaultCards[index] || `五费${index + 1}`,
-      category: card.category === "optional" ? "optional" : "normal",
+      category: normalizeCardCategory(card.category),
+      active: typeof card.active === "boolean" ? card.active : true,
       tags: Array.isArray(card.tags) ? card.tags.map((tag) => String(tag).trim()).filter(Boolean) : parseTags(card.tags),
       note: card.note || "",
     };
   });
 }
 
+function normalizeCardCategory(category) {
+  if (category === "optional" || category === "可选五费") return "optional";
+  if (category === "unlocked" || category === "解锁五费") return "unlocked";
+  return "normal";
+}
+
 function normalizeLocks(locks) {
-  if (!Array.isArray(locks) || locks.length !== 8) return structuredClone(initialState.locks);
+  if (!Array.isArray(locks) || !locks.length) return structuredClone(initialState.locks);
   return locks.map((player) => ({
     status: player.status === "eliminated" ? "eliminated" : "alive",
     cards: Array.isArray(player.cards) ? player.cards : [],
@@ -195,24 +206,55 @@ function cardNames() {
   return state.cards.map((card) => card.name);
 }
 
+function activeCards() {
+  return state.cards.filter((card) => card.active);
+}
+
+function activeCardNames() {
+  return activeCards().map((card) => card.name);
+}
+
 function playerNames() {
   return state.players.map((player, index) => player.name || defaultPlayers[index]);
+}
+
+function activePlayers() {
+  return state.players.filter((player) => player.active).slice(0, 8);
+}
+
+function activePlayerNames() {
+  return activePlayers().map((player, index) => player.name || defaultPlayers[index]);
+}
+
+function ensureLockSlots() {
+  const count = activePlayers().length;
+  while (state.locks.length < count) {
+    state.locks.push({ status: "alive", cards: [], note: "" });
+  }
+  if (state.locks.length > count) {
+    state.locks = state.locks.slice(0, count);
+  }
 }
 
 function cardLabel(cardName) {
   const card = state.cards.find((item) => item.name === cardName);
   if (!card) return cardName;
-  return card.category === "optional" ? `${card.name}（可选）` : card.name;
+  return card.category === "normal" ? card.name : `${card.name}（${cardCategories[card.category]}）`;
+}
+
+function categoryClass(category) {
+  return `category-${category || "normal"}`;
 }
 
 function renderLocks() {
+  ensureLockSlots();
   const used = lockedCards();
-  const available = cardNames().filter((card) => !used.includes(card));
+  const available = activeCardNames().filter((card) => !used.includes(card));
   document.querySelector("#lockedCardsText").textContent = used.length ? used.join("、") : "暂无";
   document.querySelector("#availableCardsText").textContent = available.length ? available.join("、") : "暂无";
 
   const ordered = state.locks
-    .map((player, index) => ({ ...player, index, name: playerNames()[index] }))
+    .map((player, index) => ({ ...player, index, name: activePlayerNames()[index] }))
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === "alive" ? -1 : 1;
       return a.index - b.index;
@@ -274,9 +316,12 @@ function renderLocks() {
 }
 
 function lockRowHtml(player, used) {
-  const availableForPlayer = cardNames().filter((card) => !used.includes(card) || player.cards.includes(card));
+  const availableForPlayer = activeCardNames().filter((card) => !used.includes(card) || player.cards.includes(card));
   const cardTags = player.cards.length
-    ? player.cards.map((card) => `<span class="tag">${escapeHtml(cardLabel(card))}<button data-index="${player.index}" data-remove-card="${escapeHtml(card)}" type="button">×</button></span>`).join("")
+    ? player.cards.map((card) => {
+      const cardInfo = state.cards.find((item) => item.name === card);
+      return `<span class="tag ${categoryClass(cardInfo?.category)}">${escapeHtml(cardLabel(card))}<button data-index="${player.index}" data-remove-card="${escapeHtml(card)}" type="button">×</button></span>`;
+    }).join("")
     : `<span class="meta">未锁牌</span>`;
 
   return `
@@ -301,21 +346,22 @@ function lockRowHtml(player, used) {
 }
 
 function ticketPlayers() {
-  return playerNames();
+  return activePlayerNames();
 }
 
 function renderLibrary() {
-  document.querySelector("#playerSettings").innerHTML = state.players
-    .map((player, index) => `
-      <label>
-        ${index + 1}号位
-        <input data-player-setting data-index="${index}" value="${escapeHtml(player.name)}">
-      </label>
-    `)
-    .join("");
+  document.querySelector("#playerSettings").innerHTML = `
+    <div class="player-library-head">
+      <span>本场</span>
+      <span>玩家</span>
+      <span>备注</span>
+    </div>
+    ${state.players.map((player, index) => playerLibraryRow(player, index)).join("")}
+  `;
 
   document.querySelector("#cardLibrary").innerHTML = `
     <div class="card-library-head">
+      <span>本场</span>
       <span>名称</span>
       <span>分类</span>
       <span>标签</span>
@@ -326,12 +372,24 @@ function renderLibrary() {
   `;
 }
 
+function playerLibraryRow(player, index) {
+  return `
+    <div class="player-library-row">
+      <input data-player-active data-index="${index}" type="checkbox" ${player.active ? "checked" : ""}>
+      <input data-player-name data-index="${index}" value="${escapeHtml(player.name)}" placeholder="玩家名">
+      <input data-player-note data-index="${index}" value="${escapeHtml(player.note || "")}" placeholder="备注">
+    </div>
+  `;
+}
+
 function cardLibraryRow(card, index) {
   return `
     <div class="card-library-row">
+      <input data-card-active data-index="${index}" type="checkbox" ${card.active ? "checked" : ""}>
       <input data-card-name data-index="${index}" value="${escapeHtml(card.name)}" placeholder="五费名称">
-      <select data-card-category data-index="${index}">
+      <select class="${categoryClass(card.category)}" data-card-category data-index="${index}">
         <option value="normal" ${card.category === "normal" ? "selected" : ""}>正常五费</option>
+        <option value="unlocked" ${card.category === "unlocked" ? "selected" : ""}>解锁五费</option>
         <option value="optional" ${card.category === "optional" ? "selected" : ""}>可选五费</option>
       </select>
       <input data-card-tags data-index="${index}" value="${escapeHtml(card.tags.join("、"))}" placeholder="例如：S14、主C">
@@ -342,13 +400,15 @@ function cardLibraryRow(card, index) {
 }
 
 function applyLibrarySettings(nextPlayers, nextCards) {
-  const previousPlayers = ticketPlayers();
+  const previousPlayers = playerNames();
   const previousCards = cardNames();
 
-  state.players = nextPlayers.slice(0, 8).map((name, index) => ({
+  state.players = nextPlayers.map((player, index) => ({
     ...(state.players[index] || {}),
     id: state.players[index]?.id || `player-${index + 1}`,
-    name: name || defaultPlayers[index],
+    name: player.name || defaultPlayers[index] || `玩家${index + 1}`,
+    active: Boolean(player.active),
+    note: player.note || "",
   }));
 
   state.locks.forEach((player) => {
@@ -363,8 +423,9 @@ function applyLibrarySettings(nextPlayers, nextCards) {
   state.cards = nextCards;
   state.ticketRecords = state.ticketRecords.map((record) => {
     const playerIndex = previousPlayers.indexOf(record.player);
-    return playerIndex >= 0 ? { ...record, player: nextPlayers[playerIndex] } : record;
+    return playerIndex >= 0 && nextPlayers[playerIndex] ? { ...record, player: nextPlayers[playerIndex].name } : record;
   });
+  ensureLockSlots();
 }
 
 function cardNamesFrom(cards) {
@@ -383,7 +444,12 @@ function splitBatchText(text) {
 }
 
 function parsePlayerBatch(text) {
-  return [...new Set(splitBatchText(text))].slice(0, 8);
+  return [...new Set(splitBatchText(text))].map((name, index) => ({
+    id: `player-${Date.now()}-${index}`,
+    name,
+    active: index < 8,
+    note: "",
+  }));
 }
 
 function parseCardBatch(text) {
@@ -393,14 +459,15 @@ function parseCardBatch(text) {
     .filter(Boolean)
     .map((line, index) => {
       const parts = splitBatchText(line);
-      const categoryIndex = parts.findIndex((part) => part === "正常五费" || part === "可选五费");
+      const categoryIndex = parts.findIndex((part) => ["正常五费", "解锁五费", "可选五费"].includes(part));
       const name = parts[0] || `五费${index + 1}`;
-      const category = categoryIndex >= 0 && parts[categoryIndex] === "可选五费" ? "optional" : "normal";
+      const category = categoryIndex >= 0 ? normalizeCardCategory(parts[categoryIndex]) : "normal";
       const tags = parts.filter((part, partIndex) => partIndex !== 0 && partIndex !== categoryIndex);
       return {
         id: `card-${Date.now()}-${index}`,
         name,
         category,
+        active: true,
         tags,
         note: "",
       };
@@ -408,14 +475,19 @@ function parseCardBatch(text) {
 }
 
 function readPlayersFromInputs() {
-  return Array.from(document.querySelectorAll("[data-player-setting]"))
-    .map((input, index) => input.value.trim() || defaultPlayers[index]);
+  return Array.from(document.querySelectorAll("[data-player-name]")).map((input, index) => ({
+    id: state.players[index]?.id || `player-${Date.now()}-${index}`,
+    name: input.value.trim() || defaultPlayers[index] || `玩家${index + 1}`,
+    active: document.querySelector(`[data-player-active][data-index="${index}"]`).checked,
+    note: document.querySelector(`[data-player-note][data-index="${index}"]`).value.trim(),
+  }));
 }
 
 function readCardsFromInputs() {
   return Array.from(document.querySelectorAll("[data-card-name]")).map((input, index) => ({
     id: state.cards[index]?.id || `card-${Date.now()}-${index}`,
     name: input.value.trim() || defaultCards[index] || `五费${index + 1}`,
+    active: document.querySelector(`[data-card-active][data-index="${index}"]`).checked,
     category: document.querySelector(`[data-card-category][data-index="${index}"]`).value,
     tags: parseTags(document.querySelector(`[data-card-tags][data-index="${index}"]`).value),
     note: document.querySelector(`[data-card-note][data-index="${index}"]`).value.trim(),
@@ -423,16 +495,26 @@ function readCardsFromInputs() {
 }
 
 function saveLibrary(nextPlayers, nextCards) {
-  if (nextPlayers.length !== 8) {
-    alert("保存失败：当前版本需要 8 个玩家。");
+  const activePlayerCount = nextPlayers.filter((player) => player.active).length;
+  const activeCardCount = nextCards.filter((card) => card.active).length;
+  if (activePlayerCount < 1 || activePlayerCount > 8) {
+    alert("保存失败：本场参与玩家需要 1 到 8 个。");
+    renderLibrary();
+    return false;
+  }
+  if (activeCardCount < 1) {
+    alert("保存失败：至少需要 1 张本场可用五费。");
+    renderLibrary();
     return false;
   }
   if (!nextCards.length) {
     alert("保存失败：至少需要 1 张五费卡。");
+    renderLibrary();
     return false;
   }
-  if (hasDuplicate(nextPlayers) || hasDuplicate(cardNamesFrom(nextCards))) {
+  if (hasDuplicate(nextPlayers.map((player) => player.name)) || hasDuplicate(cardNamesFrom(nextCards))) {
     alert("保存失败：玩家名和五费名称不能重复。");
+    renderLibrary();
     return false;
   }
   applyLibrarySettings(nextPlayers, nextCards);
@@ -591,11 +673,14 @@ document.querySelector("#parsePlayers").addEventListener("click", () => {
     alert("没有解析到玩家名。");
     return;
   }
-  const nextPlayers = [...parsed, ...defaultPlayers].slice(0, 8);
-  saveLibrary(nextPlayers, readCardsFromInputs());
+  saveLibrary(parsed, readCardsFromInputs());
 });
 
 document.querySelector("#savePlayers").addEventListener("click", () => {
+  saveLibrary(readPlayersFromInputs(), readCardsFromInputs());
+});
+
+document.querySelector("#playerSettings").addEventListener("change", () => {
   saveLibrary(readPlayersFromInputs(), readCardsFromInputs());
 });
 
@@ -612,6 +697,7 @@ document.querySelector("#addCard").addEventListener("click", () => {
   state.cards.push({
     id: `card-${Date.now()}`,
     name: `五费${state.cards.length + 1}`,
+    active: true,
     category: "normal",
     tags: [],
     note: "",
@@ -644,7 +730,7 @@ document.querySelector("#cardLibrary").addEventListener("click", (event) => {
 
 document.querySelector("#resetLibrary").addEventListener("click", () => {
   if (!confirm("确认恢复默认玩家和五费资料？已有存票姓名和锁牌卡名会同步改回默认资料。")) return;
-  saveLibrary(defaultPlayers, structuredClone(defaultCardObjects));
+  saveLibrary(structuredClone(defaultPlayerObjects), structuredClone(defaultCardObjects));
 });
 
 function renderAll() {
