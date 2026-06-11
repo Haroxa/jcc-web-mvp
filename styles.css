@@ -272,7 +272,7 @@ label select {
   padding: 12px;
 }
 
-.match-config summary {
+.match-config > summary {
   align-items: center;
   cursor: pointer;
   display: flex;
@@ -280,12 +280,12 @@ label select {
   justify-content: space-between;
 }
 
-.match-config summary span {
+.match-config > summary span {
   color: var(--accent);
   font-weight: 700;
 }
 
-.match-config summary small {
+.match-config > summary small {
   color: var(--muted);
   font-size: 13px;
   font-weight: 500;
@@ -301,6 +301,108 @@ label select {
 .match-config-grid h3 {
   margin: 0 0 8px;
   font-size: 16px;
+}
+
+.match-selected-list,
+.match-card-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 42px;
+}
+
+.match-card-groups {
+  display: grid;
+}
+
+.match-card-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.match-card-group summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.match-token {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 4px 8px;
+}
+
+.match-token button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  min-height: 20px;
+  padding: 0 2px;
+}
+
+.add-panel {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.add-panel > summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.candidate-tools {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) 130px 130px auto;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.candidate-list {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px;
+}
+
+.candidate-row {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-height: 38px;
+  min-width: 0;
+  padding: 8px;
+}
+
+.candidate-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-row strong {
+  color: var(--accent);
+  flex: 0 0 auto;
+  font-size: 12px;
 }
 
 .picker-list {
@@ -680,6 +782,10 @@ tr.eliminated {
   }
 
   .match-config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .candidate-tools {
     grid-template-columns: 1fr;
   }
 
