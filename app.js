@@ -644,7 +644,7 @@ function renderActiveMatchCards() {
   document.querySelector("#matchCardList").innerHTML = groups
     .filter((group) => group.cards.length)
     .map((group) => `
-      <details class="match-card-group" open>
+      <details class="match-card-group" ${group.category === "optional" ? "open" : ""}>
         <summary>${matchCardGroupTitle(group)}</summary>
         <div class="match-selected-list">
           ${group.cards.map((card) => `

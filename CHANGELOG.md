@@ -76,6 +76,30 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-11 11:11 压缩本场五费配置样式
+
+#### 摘要
+
+- 本场五费分组外框、标题、间距和标签高度进一步压缩。
+- 正常五费和解锁五费默认收起，减少进入锁牌管理时的空白区域。
+- 可选五费默认展开，方便确认“已选 X / 2”。
+
+#### 说明
+
+这次只做视觉密度调整，不改变数据结构和配置规则。
+
+#### 本次变更的 Git 命令
+
+```powershell
+git status --short --branch
+git diff
+node --check .\app.js
+git diff --check
+git add app.js styles.css CHANGELOG.md docs/项目状态.md
+git commit -m "压缩本场五费配置样式"
+git log --oneline -5
+```
+
 ### 2026-06-11 10:59 优化八人配置和赛季标签选卡
 
 #### 摘要
