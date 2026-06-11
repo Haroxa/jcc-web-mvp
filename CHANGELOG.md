@@ -76,6 +76,30 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-11 11:42 修复淘汰排名计算
+
+#### 摘要
+
+- 修复淘汰排名可能按错误方向或错误对象计算的问题。
+- 排名改为按 `playerId` 查找淘汰顺序，不再依赖表格排序后的对象引用。
+- 淘汰时间相同时，使用本场玩家顺序作为稳定兜底。
+
+#### 说明
+
+正确规则是：最早淘汰为最后一名，最后淘汰为第一名。
+
+#### 本次变更的 Git 命令
+
+```powershell
+git status --short --branch
+git diff
+node --check .\app.js
+git diff --check
+git add app.js CHANGELOG.md docs/项目状态.md
+git commit -m "修复淘汰排名计算"
+git log --oneline -5
+```
+
 ### 2026-06-11 11:28 增加对局历史快照
 
 #### 摘要

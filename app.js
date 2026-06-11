@@ -522,8 +522,8 @@ function rankText(player) {
   const activePlayerIds = new Set(activePlayers().map((item) => item.id));
   const eliminated = state.locks
     .filter((item) => activePlayerIds.has(item.playerId) && item.status === "eliminated" && item.eliminatedAt)
-    .sort((a, b) => a.eliminatedAt - b.eliminatedAt);
-  const order = eliminated.indexOf(state.locks[player.index]);
+    .sort((a, b) => a.eliminatedAt - b.eliminatedAt || activePlayers().findIndex((item) => item.id === a.playerId) - activePlayers().findIndex((item) => item.id === b.playerId));
+  const order = eliminated.findIndex((item) => item.playerId === player.playerId);
   if (order < 0) return "-";
   return `${activePlayers().length - order}名`;
 }
