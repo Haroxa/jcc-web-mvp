@@ -112,6 +112,7 @@ function normalizeLocks(locks) {
   if (!Array.isArray(locks) || !locks.length) return structuredClone(initialState.locks);
   return locks.map((player) => ({
     status: player.status === "eliminated" ? "eliminated" : "alive",
+    eliminatedAt: Number.isFinite(player.eliminatedAt) ? player.eliminatedAt : null,
     cards: Array.isArray(player.cards) ? player.cards : [],
     note: player.note || "",
   }));
@@ -238,7 +239,7 @@ function activePlayerNames() {
 function ensureLockSlots() {
   const count = activePlayers().length;
   while (state.locks.length < count) {
-    state.locks.push({ status: "alive", cards: [], note: "" });
+    state.locks.push({ status: "alive", eliminatedAt: null, cards: [], note: "" });
   }
   if (state.locks.length > count) {
     state.locks = state.locks.slice(0, count);
@@ -297,6 +298,7 @@ function renderLocks() {
       <thead>
         <tr>
           <th>玩家</th>
+          <th>排名</th>
           <th>状态</th>
           <th>锁定五费</th>
           <th>添加锁牌</th>
@@ -313,7 +315,7 @@ function renderLocks() {
     select.addEventListener("change", (event) => {
       const player = state.locks[event.target.dataset.index];
       player.status = event.target.value;
-      if (player.status === "eliminated") player.cards = [];
+      player.eliminatedAt = player.status === "eliminated" ? player.eliminatedAt || Date.now() : null;
       saveState();
       renderLocks();
     });
@@ -348,7 +350,12 @@ function renderLocks() {
 }
 
 function lockRowHtml(player, used) {
-  const availableForPlayer = filteredActiveCardNames().filter((card) => !used.includes(card) || player.cards.includes(card));
+  const occupiedByOthers = state.locks
+    .filter((item, index) => index !== player.index && item.status === "alive")
+    .flatMap((item) => item.cards);
+  const availableForPlayer = filteredActiveCardNames().filter((card) =>
+    player.status === "eliminated" || !occupiedByOthers.includes(card) || player.cards.includes(card)
+  );
   const cardTags = player.cards.length
     ? player.cards.map((card) => cardTagHtml(card, { remove: true, index: player.index })).join("")
     : `<span class="meta">未锁牌</span>`;
@@ -356,15 +363,16 @@ function lockRowHtml(player, used) {
   return `
     <tr class="${player.status === "eliminated" ? "eliminated" : ""}">
       <td>${escapeHtml(player.name)}</td>
+      <td>${rankText(player)}</td>
       <td>
         <select data-lock-status data-index="${player.index}">
           <option value="alive" ${player.status === "alive" ? "selected" : ""}>存活</option>
-          <option value="eliminated" ${player.status === "eliminated" ? "selected" : ""}>淘汰并释放</option>
+          <option value="eliminated" ${player.status === "eliminated" ? "selected" : ""}>淘汰</option>
         </select>
       </td>
       <td><div class="card-tags">${cardTags}</div></td>
       <td>
-        <select data-add-card data-index="${player.index}" ${player.status === "eliminated" ? "disabled" : ""}>
+        <select data-add-card data-index="${player.index}">
           <option value="">选择五费</option>
           ${availableForPlayer.filter((card) => !player.cards.includes(card)).map((card) => `<option value="${escapeHtml(card)}">${escapeHtml(cardLabel(card))}</option>`).join("")}
         </select>
@@ -372,6 +380,16 @@ function lockRowHtml(player, used) {
       <td><input data-lock-note data-index="${player.index}" value="${escapeHtml(player.note || "")}" placeholder="例如：准备追三星"></td>
     </tr>
   `;
+}
+
+function rankText(player) {
+  if (player.status !== "eliminated") return "-";
+  const eliminated = state.locks
+    .filter((item) => item.status === "eliminated" && item.eliminatedAt)
+    .sort((a, b) => a.eliminatedAt - b.eliminatedAt);
+  const order = eliminated.indexOf(state.locks[player.index]);
+  if (order < 0) return "-";
+  return `${state.locks.length - order}名`;
 }
 
 function ticketPlayers() {

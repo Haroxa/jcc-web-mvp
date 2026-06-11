@@ -59,7 +59,13 @@ button.danger {
 }
 
 .action-button {
+  height: 48px;
   min-width: 96px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
 }
 
 button.small {
