@@ -76,6 +76,30 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-11 11:50 修复淘汰玩家展示排序
+
+#### 摘要
+
+- 淘汰玩家在锁牌表中改为按名次排序展示。
+- 存活玩家仍然优先显示，并按本场玩家顺序排列。
+- 淘汰区现在按 1 名、2 名、3 名往后展示，避免排名数值正确但视觉顺序混乱。
+
+#### 说明
+
+上一版修复了排名计算，这次补齐表格展示排序，使计算结果和用户阅读顺序一致。
+
+#### 本次变更的 Git 命令
+
+```powershell
+git status --short --branch
+git diff
+node --check .\app.js
+git diff --check
+git add app.js CHANGELOG.md docs/项目状态.md
+git commit -m "修复淘汰玩家展示排序"
+git log --oneline -5
+```
+
 ### 2026-06-11 11:42 修复淘汰排名计算
 
 #### 摘要

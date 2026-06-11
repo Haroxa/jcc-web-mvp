@@ -407,6 +407,7 @@ function renderLocks() {
     .map((player) => ({ ...player, player: playerById(player.playerId), index: state.locks.indexOf(player) }))
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === "alive" ? -1 : 1;
+      if (a.status === "eliminated") return rankValue(a) - rankValue(b);
       return activePlayers().findIndex((player) => player.id === a.playerId) - activePlayers().findIndex((player) => player.id === b.playerId);
     });
 
@@ -519,13 +520,19 @@ function lockRowHtml(player, used) {
 
 function rankText(player) {
   if (player.status !== "eliminated") return "-";
+  const value = rankValue(player);
+  return value ? `${value}名` : "-";
+}
+
+function rankValue(player) {
+  if (player.status !== "eliminated") return null;
   const activePlayerIds = new Set(activePlayers().map((item) => item.id));
   const eliminated = state.locks
     .filter((item) => activePlayerIds.has(item.playerId) && item.status === "eliminated" && item.eliminatedAt)
     .sort((a, b) => a.eliminatedAt - b.eliminatedAt || activePlayers().findIndex((item) => item.id === a.playerId) - activePlayers().findIndex((item) => item.id === b.playerId));
   const order = eliminated.findIndex((item) => item.playerId === player.playerId);
-  if (order < 0) return "-";
-  return `${activePlayers().length - order}名`;
+  if (order < 0) return null;
+  return activePlayers().length - order;
 }
 
 function ticketPlayers() {
