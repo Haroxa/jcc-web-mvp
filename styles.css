@@ -256,6 +256,28 @@ label select {
   margin-bottom: 6px;
 }
 
+.current-match {
+  align-items: end;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(180px, 1fr) auto;
+  margin-bottom: 16px;
+  padding: 12px;
+}
+
+.current-match strong,
+.current-match small {
+  display: block;
+}
+
+.current-match small {
+  color: var(--muted);
+  margin-top: 4px;
+}
+
 .lock-tools {
   display: grid;
   grid-template-columns: repeat(3, minmax(180px, 1fr));
@@ -858,6 +880,10 @@ tr.eliminated {
   }
 
   .lock-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .current-match {
     grid-template-columns: 1fr;
   }
 

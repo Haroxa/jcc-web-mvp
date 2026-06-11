@@ -71,6 +71,15 @@
         <button id="resetLocks" type="button">重置锁牌</button>
       </div>
 
+      <div class="current-match">
+        <div>
+          <strong>当前对局</strong>
+          <small id="currentMatchMeta">未开始</small>
+        </div>
+        <input id="currentMatchName" type="text" placeholder="例如：6月11日第一局">
+        <button id="startNewMatch" type="button">开始新对局</button>
+      </div>
+
       <div class="lock-summary">
         <div>
           <strong>已锁</strong>
@@ -155,7 +164,7 @@
       <details class="match-history">
         <summary>对局历史</summary>
         <div class="history-actions">
-          <input id="matchSnapshotName" type="text" placeholder="例如：6月11日第一局">
+          <input id="matchSnapshotName" type="text" placeholder="默认使用当前对局名称">
           <button id="saveMatchSnapshot" type="button">保存当前对局</button>
         </div>
         <div id="matchHistoryList" class="match-history-list"></div>

@@ -43,6 +43,11 @@ const initialState = {
     note: "",
   })),
   ticketRecords: [],
+  currentMatch: {
+    id: "match-current",
+    name: "当前对局",
+    startedAt: Date.now(),
+  },
   matchHistory: [],
 };
 
@@ -66,6 +71,7 @@ function loadState() {
       displaySettings: normalizeDisplaySettings(saved.displaySettings),
       locks: normalizeLocks(saved.locks, players, cards),
       ticketRecords: normalizeTicketRecords(saved.ticketRecords, players),
+      currentMatch: normalizeCurrentMatch(saved.currentMatch),
       matchHistory: normalizeMatchHistory(saved.matchHistory, players, cards),
     };
   } catch {
@@ -180,11 +186,20 @@ function normalizeMatchHistory(records, players = defaultPlayerObjects, cards = 
     id: record.id || `match-${index + 1}`,
     name: String(record.name || "").trim() || `历史对局 ${index + 1}`,
     createdAt: Number.isFinite(record.createdAt) ? record.createdAt : Date.now(),
+    startedAt: Number.isFinite(record.startedAt) ? record.startedAt : null,
     note: record.note || "",
     playerIds: Array.isArray(record.playerIds) ? record.playerIds.filter((playerId) => playerIds.has(playerId)).slice(0, 8) : [],
     cardIds: Array.isArray(record.cardIds) ? record.cardIds.filter((cardId) => cardIds.has(cardId)) : [],
     locks: normalizeLocks(record.locks, players, cards),
   }));
+}
+
+function normalizeCurrentMatch(match) {
+  return {
+    id: match?.id || uid(),
+    name: String(match?.name || "").trim() || "当前对局",
+    startedAt: Number.isFinite(match?.startedAt) ? match.startedAt : Date.now(),
+  };
 }
 
 function parseTags(value) {
@@ -753,6 +768,28 @@ function updateCardActive(index, active) {
   saveLibrary(readPlayersFromInputs(), nextCards);
 }
 
+function renderCurrentMatch() {
+  document.querySelector("#currentMatchName").value = state.currentMatch.name;
+  document.querySelector("#currentMatchMeta").textContent = `开始于 ${formatTime(state.currentMatch.startedAt)}`;
+}
+
+function resetCurrentLocks() {
+  state.locks = activePlayers().map((player) => ({ playerId: player.id, status: "alive", eliminatedAt: null, cardIds: [], note: "" }));
+}
+
+function startNewMatch() {
+  const name = document.querySelector("#currentMatchName").value.trim() || `对局 ${formatTime(Date.now())}`;
+  if (!confirm("确认开始新对局？当前锁牌和淘汰状态会清空，基础资料、截图、存票和历史对局不会受影响。")) return;
+  state.currentMatch = {
+    id: uid(),
+    name,
+    startedAt: Date.now(),
+  };
+  resetCurrentLocks();
+  saveState();
+  renderAll();
+}
+
 function currentMatchSnapshot(name) {
   ensureLockSlots();
   const playerIds = activePlayers().map((player) => player.id);
@@ -760,8 +797,9 @@ function currentMatchSnapshot(name) {
   const lockPlayerIds = new Set(playerIds);
   return {
     id: uid(),
-    name: name || `对局 ${formatTime(Date.now())}`,
+    name: name || state.currentMatch.name || `对局 ${formatTime(Date.now())}`,
     createdAt: Date.now(),
+    startedAt: state.currentMatch.startedAt,
     note: "",
     playerIds,
     cardIds,
@@ -813,6 +851,11 @@ function restoreMatchSnapshot(recordId) {
   const cardIds = new Set(record.cardIds);
   state.players = state.players.map((player) => ({ ...player, active: playerIds.has(player.id) }));
   state.cards = state.cards.map((card) => ({ ...card, active: cardIds.has(card.id) }));
+  state.currentMatch = {
+    id: record.id,
+    name: record.name,
+    startedAt: record.startedAt || record.createdAt,
+  };
   state.locks = record.locks.map((lock) => ({
     playerId: lock.playerId,
     status: lock.status === "eliminated" ? "eliminated" : "alive",
@@ -1218,6 +1261,7 @@ document.querySelector("#importData").addEventListener("change", async (event) =
       displaySettings: normalizeDisplaySettings(imported.displaySettings),
       locks: normalizeLocks(imported.locks, players, cards),
       ticketRecords: normalizeTicketRecords(imported.ticketRecords, players),
+      currentMatch: normalizeCurrentMatch(imported.currentMatch),
       matchHistory: normalizeMatchHistory(imported.matchHistory, players, cards),
     };
     saveState();
@@ -1236,12 +1280,20 @@ document.querySelector("#resetData").addEventListener("click", () => {
 });
 
 document.querySelector("#resetLocks").addEventListener("click", () => {
-  state.locks = activePlayers().map((player) => ({ playerId: player.id, status: "alive", eliminatedAt: null, cardIds: [], note: "" }));
+  resetCurrentLocks();
   saveState();
   renderLocks();
   renderTicketOptions();
   renderTickets();
 });
+
+document.querySelector("#currentMatchName").addEventListener("change", (event) => {
+  state.currentMatch.name = event.target.value.trim() || "当前对局";
+  saveState();
+  renderCurrentMatch();
+});
+
+document.querySelector("#startNewMatch").addEventListener("click", startNewMatch);
 
 document.querySelector("#resetTickets").addEventListener("click", () => {
   if (!confirm("确认清空存票记录？")) return;
@@ -1342,6 +1394,7 @@ document.querySelector("#resetLibrary").addEventListener("click", () => {
 });
 
 function renderAll() {
+  renderCurrentMatch();
   renderScreenshots();
   renderLibrary();
   renderLocks();
