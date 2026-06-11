@@ -273,14 +273,27 @@ label select {
 }
 
 .match-config summary {
-  color: var(--accent);
+  align-items: center;
   cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.match-config summary span {
+  color: var(--accent);
   font-weight: 700;
+}
+
+.match-config summary small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .match-config-grid {
   display: grid;
-  grid-template-columns: 0.8fr 1.2fr;
+  grid-template-columns: 0.9fr 1.1fr;
   gap: 16px;
   margin-top: 12px;
 }
@@ -294,17 +307,36 @@ label select {
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
-  gap: 0;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 8px;
   max-height: 260px;
   overflow: auto;
+  padding: 8px;
 }
 
 .picker-row {
   align-items: center;
-  border-bottom: 1px solid var(--line);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   display: flex;
   gap: 8px;
   padding: 8px;
+  min-width: 0;
+}
+
+.picker-row input[type="checkbox"] {
+  flex: 0 0 auto;
+  height: 18px;
+  min-height: 18px;
+  padding: 0;
+  width: 18px;
+}
+
+.picker-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lock-tools strong {
@@ -372,7 +404,7 @@ label select {
 
 .settings-list {
   display: grid;
-  max-height: 320px;
+  height: 390px;
   max-width: 100%;
   overflow: auto;
   border: 1px solid var(--line);
@@ -422,10 +454,10 @@ label select {
 .player-library-head,
 .player-library-row {
   display: grid;
-  grid-template-columns: 56px 64px 120px 120px 120px 120px 1fr;
+  grid-template-columns: 56px 150px 150px 150px 150px 1fr;
   gap: 8px;
   align-items: center;
-  min-width: 840px;
+  min-width: 920px;
 }
 
 .player-library-head,
@@ -454,7 +486,7 @@ label select {
 
 .card-library {
   display: block;
-  max-height: 420px;
+  height: 420px;
   max-width: 100%;
   overflow: auto;
   border: 1px solid var(--line);
@@ -464,10 +496,10 @@ label select {
 .card-library-head,
 .card-library-row {
   display: grid;
-  grid-template-columns: 56px 64px 130px 120px 120px 1fr 1fr auto;
+  grid-template-columns: 56px 150px 130px 120px 1fr 1fr auto;
   gap: 8px;
   align-items: center;
-  min-width: 1120px;
+  min-width: 1040px;
 }
 
 .status-pill {

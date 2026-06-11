@@ -48,8 +48,8 @@ const initialState = {
 let state = loadState();
 let lockCardFilter = "all";
 const libraryPagination = {
-  players: { page: 1, pageSize: 8 },
-  cards: { page: 1, pageSize: 8 },
+  players: { page: 1, pageSize: 10 },
+  cards: { page: 1, pageSize: 10 },
 };
 
 function loadState() {
@@ -507,7 +507,6 @@ function renderLibrary() {
   document.querySelector("#playerSettings").innerHTML = `
     <div class="player-library-head">
       <span>编号</span>
-      <span>本场</span>
       <span>昵称</span>
       <span>抖音名</span>
       <span>微信名</span>
@@ -521,7 +520,6 @@ function renderLibrary() {
   document.querySelector("#cardLibrary").innerHTML = `
     <div class="card-library-head">
       <span>编号</span>
-      <span>本场</span>
       <span>名称</span>
       <span>外号</span>
       <span>分类</span>
@@ -547,14 +545,12 @@ function pagedRows(type, rows) {
 function paginationHtml(type, total) {
   const pagination = libraryPagination[type];
   const totalPages = Math.max(1, Math.ceil(total / pagination.pageSize));
-  const start = total ? (pagination.page - 1) * pagination.pageSize + 1 : 0;
-  const end = Math.min(total, pagination.page * pagination.pageSize);
   return `
-    <span>${start}-${end} / ${total}</span>
+    <span>第 ${pagination.page} / ${totalPages} 页 · 共 ${total} 条</span>
     <label>
       每页
       <select data-library-page-size="${type}">
-        ${[8, 16, 32].map((size) => `<option value="${size}" ${pagination.pageSize === size ? "selected" : ""}>${size}</option>`).join("")}
+        ${[5, 10, 15, 20, 30].map((size) => `<option value="${size}" ${pagination.pageSize === size ? "selected" : ""}>${size}</option>`).join("")}
       </select>
     </label>
     <button data-library-page="${type}" data-page-step="-1" type="button" ${pagination.page <= 1 ? "disabled" : ""}>上一页</button>
@@ -566,7 +562,6 @@ function playerLibraryRow(player, index) {
   return `
     <div class="player-library-row">
       <span>${index + 1}</span>
-      <span class="status-pill ${player.active ? "active" : ""}">${player.active ? "本场" : "候选"}</span>
       <input data-player-nickname data-index="${index}" value="${escapeHtml(player.nickname)}" placeholder="昵称">
       <input data-player-douyin data-index="${index}" value="${escapeHtml(player.douyinName || "")}" placeholder="抖音名">
       <input data-player-wechat data-index="${index}" value="${escapeHtml(player.wechatName || "")}" placeholder="微信名">
@@ -580,7 +575,6 @@ function cardLibraryRow(card, index) {
   return `
     <div class="card-library-row">
       <span>${index + 1}</span>
-      <span class="status-pill ${card.active ? "active" : ""}">${card.active ? "可用" : "备用"}</span>
       <input data-card-name data-index="${index}" value="${escapeHtml(card.name)}" placeholder="五费名称">
       <input data-card-alias data-index="${index}" value="${escapeHtml(card.alias || "")}" placeholder="外号">
       <select class="${categoryClass(card.category)}" data-card-category data-index="${index}">
@@ -596,6 +590,7 @@ function cardLibraryRow(card, index) {
 }
 
 function renderMatchConfig() {
+  document.querySelector("#matchConfigSummary").textContent = `${activePlayers().length} 名玩家 · ${activeCards().length} 张五费`;
   document.querySelector("#matchPlayerPicker").innerHTML = state.players
     .map((player, index) => `
       <label class="picker-row">
