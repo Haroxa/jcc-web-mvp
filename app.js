@@ -372,6 +372,7 @@ function renderLocks() {
   ensureLockSlots();
   const used = sortCardIds(lockedCards());
   const available = activeCardIds().filter((cardId) => !used.includes(cardId));
+  const missingPlayerCount = Math.max(0, 8 - activePlayers().length);
   document.querySelector("#lockedCardsText").innerHTML = cardTagListHtml(used, "暂无");
   document.querySelector("#availableCardsText").innerHTML = cardTagListHtml(available, "暂无");
   document.querySelectorAll("[data-card-filter]").forEach((button) => {
@@ -406,6 +407,7 @@ function renderLocks() {
       </thead>
       <tbody>
         ${ordered.map((player) => lockRowHtml(player, used)).join("")}
+        ${Array.from({ length: missingPlayerCount }, (_, index) => missingLockRowHtml(index)).join("")}
       </tbody>
     </table>
   `;
@@ -446,6 +448,19 @@ function renderLocks() {
       saveState();
     });
   });
+}
+
+function missingLockRowHtml(index) {
+  return `
+    <tr class="missing-row">
+      <td>缺少玩家 ${index + 1}</td>
+      <td>-</td>
+      <td>未配置</td>
+      <td><span class="meta">-</span></td>
+      <td><span class="meta">请先添加玩家</span></td>
+      <td><span class="meta">-</span></td>
+    </tr>
+  `;
 }
 
 function lockRowHtml(player, used) {
@@ -607,14 +622,18 @@ function renderMatchConfig() {
 
 function renderActiveMatchPlayers() {
   const players = activePlayers();
-  document.querySelector("#matchPlayerList").innerHTML = players.length
-    ? players.map((player, index) => `
+  const missingSlots = Array.from({ length: Math.max(0, 8 - players.length) }, (_, index) => `
+    <span class="match-token missing-token">缺少玩家 ${index + 1}</span>
+  `).join("");
+  document.querySelector("#matchPlayerList").innerHTML = `
+    ${players.map((player) => `
       <span class="match-token">
-        ${index + 1}. ${escapeHtml(player.nickname)}
+        ${escapeHtml(player.nickname)}
         <button data-remove-match-player="${escapeHtml(player.id)}" type="button" aria-label="移除${escapeHtml(player.nickname)}">×</button>
       </span>
-    `).join("")
-    : `<span class="meta">暂无本场玩家</span>`;
+    `).join("")}
+    ${missingSlots}
+  `;
 }
 
 function renderActiveMatchCards() {
@@ -626,7 +645,7 @@ function renderActiveMatchCards() {
     .filter((group) => group.cards.length)
     .map((group) => `
       <details class="match-card-group" open>
-        <summary>${cardCategories[group.category]} · ${group.cards.length} 张</summary>
+        <summary>${matchCardGroupTitle(group)}</summary>
         <div class="match-selected-list">
           ${group.cards.map((card) => `
             <span class="match-token tag ${categoryClass(card.category)}" title="${escapeHtml(cardTitle(card.id))}">
@@ -639,16 +658,25 @@ function renderActiveMatchCards() {
     `).join("") || `<span class="meta">暂无本场五费</span>`;
 }
 
+function matchCardGroupTitle(group) {
+  if (group.category === "optional") return `${cardCategories[group.category]} · 已选 ${group.cards.length} / 2`;
+  return `${cardCategories[group.category]} · ${group.cards.length} 张`;
+}
+
 function renderMatchPlayerCandidates() {
   const query = document.querySelector("#matchPlayerSearch")?.value.trim().toLowerCase() || "";
+  if (activePlayers().length >= 8) {
+    document.querySelector("#matchPlayerPicker").innerHTML = `<div class="empty">本场玩家已满 8 人。</div>`;
+    return;
+  }
   const candidates = state.players
     .map((player, index) => ({ player, index }))
     .filter(({ player }) => !player.active)
     .filter(({ player }) => [player.nickname, player.douyinName, player.wechatName, player.gameName, player.note].join(" ").toLowerCase().includes(query));
   document.querySelector("#matchPlayerPicker").innerHTML = candidates.length
-    ? candidates.map(({ player, index }) => `
+    ? candidates.map(({ player, index }, candidateIndex) => `
       <button class="candidate-row" data-add-match-player="${index}" type="button">
-        <span>${index + 1}. ${escapeHtml(player.nickname)}</span>
+        <span>${candidateIndex + 1}. ${escapeHtml(player.nickname)}</span>
         <strong>添加</strong>
       </button>
     `).join("")
@@ -659,9 +687,9 @@ function renderMatchCardCandidates() {
   renderMatchCardTagOptions();
   const candidates = matchCardCandidates();
   document.querySelector("#matchCardPicker").innerHTML = candidates.length
-    ? candidates.map(({ card, index }) => `
+    ? candidates.map(({ card, index }, candidateIndex) => `
       <button class="candidate-row" data-add-match-card="${index}" type="button">
-        <span class="tag ${categoryClass(card.category)}" title="${escapeHtml(cardTitle(card.id))}">${index + 1}. ${escapeHtml(cardLabel(card.id))}</span>
+        <span class="tag compact-tag ${categoryClass(card.category)}" title="${escapeHtml(cardTitle(card.id))}">${candidateIndex + 1}. ${escapeHtml(cardLabel(card.id))}</span>
         <strong>添加</strong>
       </button>
     `).join("")
@@ -672,7 +700,7 @@ function renderMatchCardTagOptions() {
   const select = document.querySelector("#matchCardTagFilter");
   const currentValue = select.value || "all";
   const tags = [...new Set(state.cards.flatMap((card) => card.tags || []))];
-  select.innerHTML = `<option value="all">全部标签</option>${tags.map((tag) => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`).join("")}`;
+  select.innerHTML = `<option value="all">全部赛季/标签</option>${tags.map((tag) => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`).join("")}`;
   select.value = tags.includes(currentValue) ? currentValue : "all";
 }
 
@@ -689,6 +717,7 @@ function matchCardCandidates() {
 }
 
 function updatePlayerActive(index, active) {
+  if (active && activePlayers().length >= 8) return;
   const nextPlayers = readPlayersFromInputs();
   nextPlayers[index].active = active;
   saveLibrary(nextPlayers, readCardsFromInputs());
@@ -697,6 +726,28 @@ function updatePlayerActive(index, active) {
 function updateCardActive(index, active) {
   const nextCards = readCardsFromInputs();
   nextCards[index].active = active;
+  saveLibrary(readPlayersFromInputs(), nextCards);
+}
+
+function quickConfigureCardsByTag() {
+  const tag = document.querySelector("#matchCardTagFilter").value;
+  if (tag === "all") {
+    alert("请先选择一个赛季/标签。");
+    return;
+  }
+  const nextCards = readCardsFromInputs().map((card) => ({ ...card, active: false }));
+  const matchedCards = nextCards.filter((card) => (card.tags || []).includes(tag));
+  matchedCards
+    .filter((card) => card.category === "normal" || card.category === "unlocked")
+    .forEach((card) => {
+      card.active = true;
+    });
+  matchedCards
+    .filter((card) => card.category === "optional")
+    .slice(0, 2)
+    .forEach((card) => {
+      card.active = true;
+    });
   saveLibrary(readPlayersFromInputs(), nextCards);
 }
 
@@ -973,6 +1024,8 @@ document.querySelector("#matchCardPicker").addEventListener("click", (event) => 
 document.querySelector("#matchCardSearch").addEventListener("input", renderMatchCardCandidates);
 document.querySelector("#matchCardCategoryFilter").addEventListener("change", renderMatchCardCandidates);
 document.querySelector("#matchCardTagFilter").addEventListener("change", renderMatchCardCandidates);
+
+document.querySelector("#quickSeasonConfig").addEventListener("click", quickConfigureCardsByTag);
 
 document.querySelector("#addFilteredCards").addEventListener("click", () => {
   const candidates = matchCardCandidates();

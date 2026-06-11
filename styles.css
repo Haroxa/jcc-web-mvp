@@ -334,18 +334,24 @@ label select {
   border: 1px solid var(--line);
   border-radius: 999px;
   display: inline-flex;
-  gap: 6px;
+  gap: 5px;
   max-width: 100%;
-  min-height: 30px;
-  padding: 4px 8px;
+  min-height: 28px;
+  padding: 3px 8px;
 }
 
 .match-token button {
   border: 0;
   background: transparent;
   color: inherit;
-  min-height: 20px;
+  min-height: 18px;
   padding: 0 2px;
+}
+
+.missing-token {
+  border-style: dashed;
+  color: var(--muted);
+  background: #f8fafc;
 }
 
 .add-panel {
@@ -362,7 +368,7 @@ label select {
 
 .candidate-tools {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) 130px 130px auto;
+  grid-template-columns: minmax(160px, 1fr) 130px 150px auto auto;
   gap: 8px;
   margin: 10px 0;
 }
@@ -403,6 +409,21 @@ label select {
   color: var(--accent);
   flex: 0 0 auto;
   font-size: 12px;
+}
+
+.compact-tag,
+.match-card-group .tag {
+  min-height: 26px;
+  padding: 3px 8px;
+}
+
+.missing-row {
+  background: #f8fafc;
+  color: var(--muted);
+}
+
+.missing-row td {
+  border-bottom-style: dashed;
 }
 
 .picker-list {
