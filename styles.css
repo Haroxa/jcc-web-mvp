@@ -257,10 +257,16 @@ label select {
 }
 
 .lock-tools {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  align-items: start;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.lock-tools strong {
+  display: block;
+  margin-bottom: 8px;
 }
 
 .segmented {
@@ -346,10 +352,10 @@ label select {
 .player-library-head,
 .player-library-row {
   display: grid;
-  grid-template-columns: 64px 1fr 1fr;
+  grid-template-columns: 64px 120px 120px 120px 120px 1fr;
   gap: 8px;
   align-items: center;
-  min-width: 520px;
+  min-width: 760px;
 }
 
 .player-library-head,
@@ -388,10 +394,10 @@ label select {
 .card-library-head,
 .card-library-row {
   display: grid;
-  grid-template-columns: 64px 1fr 120px 1fr 1fr auto;
+  grid-template-columns: 64px 130px 120px 120px 1fr 1fr auto;
   gap: 8px;
   align-items: center;
-  min-width: 920px;
+  min-width: 1040px;
 }
 
 .card-library-row {
@@ -551,8 +557,6 @@ tr.eliminated {
   }
 
   .lock-tools {
-    align-items: flex-start;
-    display: grid;
     grid-template-columns: 1fr;
   }
 

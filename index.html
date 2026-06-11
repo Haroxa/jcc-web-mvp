@@ -83,12 +83,30 @@
       </div>
 
       <div class="lock-tools">
-        <strong>添加筛选</strong>
-        <div class="segmented" id="cardCategoryFilter" aria-label="五费分类筛选">
-          <button class="active" data-card-filter="all" type="button">全部</button>
-          <button data-card-filter="normal" type="button">正常五费</button>
-          <button data-card-filter="unlocked" type="button">解锁五费</button>
-          <button data-card-filter="optional" type="button">可选五费</button>
+        <div>
+          <strong>玩家显示</strong>
+          <div class="segmented" id="playerNameMode" aria-label="玩家显示方式">
+            <button class="active" data-player-mode="nickname" type="button">昵称</button>
+            <button data-player-mode="gameName" type="button">游戏名</button>
+            <button data-player-mode="douyinName" type="button">抖音名</button>
+            <button data-player-mode="wechatName" type="button">微信名</button>
+          </div>
+        </div>
+        <div>
+          <strong>五费显示</strong>
+          <div class="segmented" id="cardNameMode" aria-label="五费显示方式">
+            <button class="active" data-card-mode="name" type="button">正式名</button>
+            <button data-card-mode="alias" type="button">外号优先</button>
+          </div>
+        </div>
+        <div>
+          <strong>添加筛选</strong>
+          <div class="segmented" id="cardCategoryFilter" aria-label="五费分类筛选">
+            <button class="active" data-card-filter="all" type="button">全部</button>
+            <button data-card-filter="normal" type="button">正常五费</button>
+            <button data-card-filter="unlocked" type="button">解锁五费</button>
+            <button data-card-filter="optional" type="button">可选五费</button>
+          </div>
         </div>
       </div>
 
@@ -151,8 +169,8 @@
       <div class="library-grid">
         <section class="library-section">
           <h3>玩家名单</h3>
-          <p class="meta">每行、逗号、顿号或空格都可以分隔。可维护候选玩家，并勾选本场 1-8 人。</p>
-          <textarea id="playerBatch" rows="4" placeholder="张三&#10;李四&#10;王五&#10;赵六"></textarea>
+          <p class="meta">简单模式每行一个昵称；完整模式：昵称 | 抖音名 | 微信名 | 游戏名。</p>
+          <textarea id="playerBatch" rows="4" placeholder="妹妹 | 抖音妹妹 | 微信妹妹 | 游戏妹妹&#10;骑士"></textarea>
           <div class="inline-actions">
             <button id="parsePlayers" type="button">解析玩家文本</button>
             <button id="savePlayers" type="button">保存玩家名单</button>
@@ -162,8 +180,8 @@
 
         <section class="library-section">
           <h3>五费卡资料</h3>
-          <p class="meta">每行一张卡：名称 分类 标签。分类支持“正常五费”“解锁五费”“可选五费”，其他内容会作为标签。</p>
-          <textarea id="cardBatch" rows="5" placeholder="格温 正常五费 S14 主C&#10;新春使者A 可选五费 新春使者"></textarea>
+          <p class="meta">每行一张卡：名称|外号 分类 标签。分类支持“正常五费”“解锁五费”“可选五费”。</p>
+          <textarea id="cardBatch" rows="5" placeholder="瑟提|万豪 正常五费 S14&#10;索拉卡|奶妈 可选五费 新春使者"></textarea>
           <div class="inline-actions">
             <button id="parseCards" type="button">解析五费文本</button>
             <button id="addCard" type="button">新增五费</button>

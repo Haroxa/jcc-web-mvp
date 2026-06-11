@@ -9,7 +9,10 @@ const cardCategories = {
 
 const defaultPlayerObjects = defaultPlayers.map((name, index) => ({
   id: `player-${index + 1}`,
-  name,
+  nickname: name,
+  douyinName: "",
+  wechatName: "",
+  gameName: "",
   active: true,
   note: "",
 }));
@@ -17,6 +20,7 @@ const defaultPlayerObjects = defaultPlayers.map((name, index) => ({
 const defaultCardObjects = defaultCards.map((name, index) => ({
   id: `card-${index + 1}`,
   name,
+  alias: "",
   category: "normal",
   active: true,
   tags: [],
@@ -27,6 +31,10 @@ const initialState = {
   screenshots: [],
   players: structuredClone(defaultPlayerObjects),
   cards: structuredClone(defaultCardObjects),
+  displaySettings: {
+    playerNameMode: "nickname",
+    cardNameMode: "name",
+  },
   locks: defaultPlayers.map(() => ({
     status: "alive",
     cards: [],
@@ -48,6 +56,7 @@ function loadState() {
       screenshots: Array.isArray(saved.screenshots) ? saved.screenshots : [],
       players,
       cards,
+      displaySettings: normalizeDisplaySettings(saved.displaySettings),
       locks: normalizeLocks(saved.locks),
       ticketRecords: Array.isArray(saved.ticketRecords) ? saved.ticketRecords : [],
     };
@@ -60,7 +69,10 @@ function normalizePlayers(players, locks) {
   if (Array.isArray(players) && players.length) {
     return players.map((player, index) => ({
       id: player.id || `player-${index + 1}`,
-      name: String(player.name || "").trim() || defaultPlayers[index] || `玩家${index + 1}`,
+      nickname: String(player.nickname || player.name || "").trim() || defaultPlayers[index] || `玩家${index + 1}`,
+      douyinName: String(player.douyinName || "").trim(),
+      wechatName: String(player.wechatName || "").trim(),
+      gameName: String(player.gameName || "").trim(),
       active: typeof player.active === "boolean" ? player.active : index < 8,
       note: player.note || "",
     }));
@@ -69,7 +81,10 @@ function normalizePlayers(players, locks) {
   if (Array.isArray(locks) && locks.length) {
     return locks.map((player, index) => ({
       id: `player-${index + 1}`,
-      name: String(player.name || "").trim() || defaultPlayers[index] || `玩家${index + 1}`,
+      nickname: String(player.name || "").trim() || defaultPlayers[index] || `玩家${index + 1}`,
+      douyinName: "",
+      wechatName: "",
+      gameName: "",
       active: index < 8,
       note: "",
     }));
@@ -85,6 +100,7 @@ function normalizeCards(cards) {
       return {
         id: `card-${index + 1}`,
         name: card.trim() || defaultCards[index] || `五费${index + 1}`,
+        alias: "",
         category: "normal",
         active: true,
         tags: [],
@@ -94,12 +110,22 @@ function normalizeCards(cards) {
     return {
       id: card.id || `card-${index + 1}`,
       name: String(card.name || "").trim() || defaultCards[index] || `五费${index + 1}`,
+      alias: String(card.alias || "").trim(),
       category: normalizeCardCategory(card.category),
       active: typeof card.active === "boolean" ? card.active : true,
       tags: Array.isArray(card.tags) ? card.tags.map((tag) => String(tag).trim()).filter(Boolean) : parseTags(card.tags),
       note: card.note || "",
     };
   });
+}
+
+function normalizeDisplaySettings(settings) {
+  const playerModes = ["nickname", "gameName", "douyinName", "wechatName"];
+  const cardModes = ["name", "alias"];
+  return {
+    playerNameMode: playerModes.includes(settings?.playerNameMode) ? settings.playerNameMode : "nickname",
+    cardNameMode: cardModes.includes(settings?.cardNameMode) ? settings.cardNameMode : "name",
+  };
 }
 
 function normalizeCardCategory(category) {
@@ -225,7 +251,7 @@ function filteredActiveCardNames() {
 }
 
 function playerNames() {
-  return state.players.map((player, index) => player.name || defaultPlayers[index]);
+  return state.players.map((player, index) => player.nickname || defaultPlayers[index]);
 }
 
 function activePlayers() {
@@ -233,7 +259,12 @@ function activePlayers() {
 }
 
 function activePlayerNames() {
-  return activePlayers().map((player, index) => player.name || defaultPlayers[index]);
+  return activePlayers().map((player, index) => playerDisplayName(player, index));
+}
+
+function playerDisplayName(player, index = 0) {
+  const fallback = player.nickname || defaultPlayers[index] || `玩家${index + 1}`;
+  return player[state.displaySettings.playerNameMode] || fallback;
 }
 
 function ensureLockSlots() {
@@ -248,13 +279,15 @@ function ensureLockSlots() {
 
 function cardLabel(cardName) {
   const card = state.cards.find((item) => item.name === cardName);
-  return card ? card.name : cardName;
+  if (!card) return cardName;
+  return state.displaySettings.cardNameMode === "alias" ? card.alias || card.name : card.name;
 }
 
 function cardTitle(cardName) {
   const card = state.cards.find((item) => item.name === cardName);
   if (!card) return cardName;
-  const parts = [cardCategories[card.category] || "正常五费", ...card.tags];
+  const alias = card.alias ? `外号：${card.alias}` : "";
+  const parts = [cardCategories[card.category] || "正常五费", alias, ...card.tags].filter(Boolean);
   return `${card.name}：${parts.join("、")}`;
 }
 
@@ -284,6 +317,12 @@ function renderLocks() {
   document.querySelector("#availableCardsText").innerHTML = cardTagListHtml(available, "暂无");
   document.querySelectorAll("[data-card-filter]").forEach((button) => {
     button.classList.toggle("active", button.dataset.cardFilter === lockCardFilter);
+  });
+  document.querySelectorAll("[data-player-mode]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.playerMode === state.displaySettings.playerNameMode);
+  });
+  document.querySelectorAll("[data-card-mode]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.cardMode === state.displaySettings.cardNameMode);
   });
 
   const ordered = state.locks
@@ -400,7 +439,10 @@ function renderLibrary() {
   document.querySelector("#playerSettings").innerHTML = `
     <div class="player-library-head">
       <span>本场</span>
-      <span>玩家</span>
+      <span>昵称</span>
+      <span>抖音名</span>
+      <span>微信名</span>
+      <span>游戏名</span>
       <span>备注</span>
     </div>
     ${state.players.map((player, index) => playerLibraryRow(player, index)).join("")}
@@ -410,6 +452,7 @@ function renderLibrary() {
     <div class="card-library-head">
       <span>本场</span>
       <span>名称</span>
+      <span>外号</span>
       <span>分类</span>
       <span>标签</span>
       <span>备注</span>
@@ -423,7 +466,10 @@ function playerLibraryRow(player, index) {
   return `
     <div class="player-library-row">
       <input data-player-active data-index="${index}" type="checkbox" ${player.active ? "checked" : ""}>
-      <input data-player-name data-index="${index}" value="${escapeHtml(player.name)}" placeholder="玩家名">
+      <input data-player-nickname data-index="${index}" value="${escapeHtml(player.nickname)}" placeholder="昵称">
+      <input data-player-douyin data-index="${index}" value="${escapeHtml(player.douyinName || "")}" placeholder="抖音名">
+      <input data-player-wechat data-index="${index}" value="${escapeHtml(player.wechatName || "")}" placeholder="微信名">
+      <input data-player-game data-index="${index}" value="${escapeHtml(player.gameName || "")}" placeholder="游戏名">
       <input data-player-note data-index="${index}" value="${escapeHtml(player.note || "")}" placeholder="备注">
     </div>
   `;
@@ -434,6 +480,7 @@ function cardLibraryRow(card, index) {
     <div class="card-library-row">
       <input data-card-active data-index="${index}" type="checkbox" ${card.active ? "checked" : ""}>
       <input data-card-name data-index="${index}" value="${escapeHtml(card.name)}" placeholder="五费名称">
+      <input data-card-alias data-index="${index}" value="${escapeHtml(card.alias || "")}" placeholder="外号">
       <select class="${categoryClass(card.category)}" data-card-category data-index="${index}">
         <option value="normal" ${card.category === "normal" ? "selected" : ""}>正常五费</option>
         <option value="unlocked" ${card.category === "unlocked" ? "selected" : ""}>解锁五费</option>
@@ -453,7 +500,10 @@ function applyLibrarySettings(nextPlayers, nextCards) {
   state.players = nextPlayers.map((player, index) => ({
     ...(state.players[index] || {}),
     id: state.players[index]?.id || `player-${index + 1}`,
-    name: player.name || defaultPlayers[index] || `玩家${index + 1}`,
+    nickname: player.nickname || defaultPlayers[index] || `玩家${index + 1}`,
+    douyinName: player.douyinName || "",
+    wechatName: player.wechatName || "",
+    gameName: player.gameName || "",
     active: Boolean(player.active),
     note: player.note || "",
   }));
@@ -470,7 +520,7 @@ function applyLibrarySettings(nextPlayers, nextCards) {
   state.cards = nextCards;
   state.ticketRecords = state.ticketRecords.map((record) => {
     const playerIndex = previousPlayers.indexOf(record.player);
-    return playerIndex >= 0 && nextPlayers[playerIndex] ? { ...record, player: nextPlayers[playerIndex].name } : record;
+    return playerIndex >= 0 && nextPlayers[playerIndex] ? { ...record, player: nextPlayers[playerIndex].nickname } : record;
   });
   ensureLockSlots();
 }
@@ -491,12 +541,26 @@ function splitBatchText(text) {
 }
 
 function parsePlayerBatch(text) {
-  return [...new Set(splitBatchText(text))].map((name, index) => ({
-    id: `player-${Date.now()}-${index}`,
-    name,
-    active: index < 8,
-    note: "",
-  }));
+  return text
+    .split(/\r?\n/)
+    .flatMap((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return [];
+      if (!trimmed.includes("|")) return splitBatchText(trimmed).map((name) => ({ nickname: name }));
+      const [nickname, douyinName = "", wechatName = "", gameName = ""] = trimmed.split("|").map((item) => item.trim());
+      return [{ nickname, douyinName, wechatName, gameName }];
+    })
+    .filter((player) => player.nickname)
+    .filter((player, index, players) => players.findIndex((item) => item.nickname === player.nickname) === index)
+    .map((player, index) => ({
+      id: `player-${Date.now()}-${index}`,
+      nickname: player.nickname,
+      douyinName: player.douyinName || "",
+      wechatName: player.wechatName || "",
+      gameName: player.gameName || "",
+      active: index < 8,
+      note: "",
+    }));
 }
 
 function parseCardBatch(text) {
@@ -506,13 +570,15 @@ function parseCardBatch(text) {
     .filter(Boolean)
     .map((line, index) => {
       const parts = splitBatchText(line);
+      const [rawName, alias = ""] = parts[0]?.split("|").map((item) => item.trim()) || [];
       const categoryIndex = parts.findIndex((part) => ["正常五费", "解锁五费", "可选五费"].includes(part));
-      const name = parts[0] || `五费${index + 1}`;
+      const name = rawName || `五费${index + 1}`;
       const category = categoryIndex >= 0 ? normalizeCardCategory(parts[categoryIndex]) : "normal";
       const tags = parts.filter((part, partIndex) => partIndex !== 0 && partIndex !== categoryIndex);
       return {
         id: `card-${Date.now()}-${index}`,
         name,
+        alias,
         category,
         active: true,
         tags,
@@ -522,9 +588,12 @@ function parseCardBatch(text) {
 }
 
 function readPlayersFromInputs() {
-  return Array.from(document.querySelectorAll("[data-player-name]")).map((input, index) => ({
+  return Array.from(document.querySelectorAll("[data-player-nickname]")).map((input, index) => ({
     id: state.players[index]?.id || `player-${Date.now()}-${index}`,
-    name: input.value.trim() || defaultPlayers[index] || `玩家${index + 1}`,
+    nickname: input.value.trim() || defaultPlayers[index] || `玩家${index + 1}`,
+    douyinName: document.querySelector(`[data-player-douyin][data-index="${index}"]`).value.trim(),
+    wechatName: document.querySelector(`[data-player-wechat][data-index="${index}"]`).value.trim(),
+    gameName: document.querySelector(`[data-player-game][data-index="${index}"]`).value.trim(),
     active: document.querySelector(`[data-player-active][data-index="${index}"]`).checked,
     note: document.querySelector(`[data-player-note][data-index="${index}"]`).value.trim(),
   }));
@@ -534,6 +603,7 @@ function readCardsFromInputs() {
   return Array.from(document.querySelectorAll("[data-card-name]")).map((input, index) => ({
     id: state.cards[index]?.id || `card-${Date.now()}-${index}`,
     name: input.value.trim() || defaultCards[index] || `五费${index + 1}`,
+    alias: document.querySelector(`[data-card-alias][data-index="${index}"]`).value.trim(),
     active: document.querySelector(`[data-card-active][data-index="${index}"]`).checked,
     category: document.querySelector(`[data-card-category][data-index="${index}"]`).value,
     tags: parseTags(document.querySelector(`[data-card-tags][data-index="${index}"]`).value),
@@ -559,7 +629,7 @@ function saveLibrary(nextPlayers, nextCards) {
     renderLibrary();
     return false;
   }
-  if (hasDuplicate(nextPlayers.map((player) => player.name)) || hasDuplicate(cardNamesFrom(nextCards))) {
+  if (hasDuplicate(nextPlayers.map((player) => player.nickname)) || hasDuplicate(cardNamesFrom(nextCards))) {
     alert("保存失败：玩家名和五费名称不能重复。");
     renderLibrary();
     return false;
@@ -627,6 +697,24 @@ document.querySelector("#cardCategoryFilter").addEventListener("click", (event) 
   const button = event.target.closest("[data-card-filter]");
   if (!button) return;
   lockCardFilter = button.dataset.cardFilter;
+  renderLocks();
+});
+
+document.querySelector("#playerNameMode").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-player-mode]");
+  if (!button) return;
+  state.displaySettings.playerNameMode = button.dataset.playerMode;
+  saveState();
+  renderLocks();
+  renderTicketOptions();
+  renderTickets();
+});
+
+document.querySelector("#cardNameMode").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-card-mode]");
+  if (!button) return;
+  state.displaySettings.cardNameMode = button.dataset.cardMode;
+  saveState();
   renderLocks();
 });
 
@@ -751,6 +839,7 @@ document.querySelector("#addCard").addEventListener("click", () => {
   state.cards.push({
     id: `card-${Date.now()}`,
     name: `五费${state.cards.length + 1}`,
+    alias: "",
     active: true,
     category: "normal",
     tags: [],
