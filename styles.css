@@ -264,6 +264,49 @@ label select {
   margin-bottom: 16px;
 }
 
+.match-config {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 16px;
+  padding: 12px;
+}
+
+.match-config summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.match-config-grid {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.match-config-grid h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.picker-list {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.picker-row {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+}
+
 .lock-tools strong {
   display: block;
   margin-bottom: 8px;
@@ -349,13 +392,40 @@ label select {
   margin: 10px 0 14px;
 }
 
+.pager {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 8px;
+  justify-content: flex-end;
+  margin: 10px 0;
+}
+
+.pager label {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.pager select {
+  min-height: 32px;
+  padding: 4px 8px;
+}
+
+.pager button {
+  min-height: 32px;
+  padding: 6px 10px;
+}
+
 .player-library-head,
 .player-library-row {
   display: grid;
-  grid-template-columns: 64px 120px 120px 120px 120px 1fr;
+  grid-template-columns: 56px 64px 120px 120px 120px 120px 1fr;
   gap: 8px;
   align-items: center;
-  min-width: 760px;
+  min-width: 840px;
 }
 
 .player-library-head,
@@ -394,10 +464,27 @@ label select {
 .card-library-head,
 .card-library-row {
   display: grid;
-  grid-template-columns: 64px 130px 120px 120px 1fr 1fr auto;
+  grid-template-columns: 56px 64px 130px 120px 120px 1fr 1fr auto;
   gap: 8px;
   align-items: center;
-  min-width: 1040px;
+  min-width: 1120px;
+}
+
+.status-pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12px;
+  justify-content: center;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.status-pill.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .card-library-row {
@@ -557,6 +644,10 @@ tr.eliminated {
   }
 
   .lock-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .match-config-grid {
     grid-template-columns: 1fr;
   }
 

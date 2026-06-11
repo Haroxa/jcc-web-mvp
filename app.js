@@ -35,9 +35,11 @@ const initialState = {
     playerNameMode: "nickname",
     cardNameMode: "name",
   },
-  locks: defaultPlayers.map(() => ({
+  locks: defaultPlayerObjects.map((player) => ({
+    playerId: player.id,
     status: "alive",
-    cards: [],
+    eliminatedAt: null,
+    cardIds: [],
     note: "",
   })),
   ticketRecords: [],
@@ -45,6 +47,10 @@ const initialState = {
 
 let state = loadState();
 let lockCardFilter = "all";
+const libraryPagination = {
+  players: { page: 1, pageSize: 8 },
+  cards: { page: 1, pageSize: 8 },
+};
 
 function loadState() {
   try {
@@ -57,8 +63,8 @@ function loadState() {
       players,
       cards,
       displaySettings: normalizeDisplaySettings(saved.displaySettings),
-      locks: normalizeLocks(saved.locks),
-      ticketRecords: Array.isArray(saved.ticketRecords) ? saved.ticketRecords : [],
+      locks: normalizeLocks(saved.locks, players, cards),
+      ticketRecords: normalizeTicketRecords(saved.ticketRecords, players),
     };
   } catch {
     return structuredClone(initialState);
@@ -134,13 +140,33 @@ function normalizeCardCategory(category) {
   return "normal";
 }
 
-function normalizeLocks(locks) {
+function normalizeLocks(locks, players = defaultPlayerObjects, cards = defaultCardObjects) {
   if (!Array.isArray(locks) || !locks.length) return structuredClone(initialState.locks);
-  return locks.map((player) => ({
+  const activePlayerIds = players.filter((player) => player.active).map((player) => player.id);
+  return locks.map((player, index) => ({
+    playerId: player.playerId || activePlayerIds[index] || players[index]?.id || `player-${index + 1}`,
     status: player.status === "eliminated" ? "eliminated" : "alive",
     eliminatedAt: Number.isFinite(player.eliminatedAt) ? player.eliminatedAt : null,
-    cards: Array.isArray(player.cards) ? player.cards : [],
+    cardIds: normalizeLockCardIds(player, cards),
     note: player.note || "",
+  }));
+}
+
+function normalizeLockCardIds(lock, cards) {
+  if (Array.isArray(lock.cardIds)) {
+    return lock.cardIds.filter((cardId) => cards.some((card) => card.id === cardId));
+  }
+  if (!Array.isArray(lock.cards)) return [];
+  return lock.cards
+    .map((cardName) => cardIdByName(cardName, cards))
+    .filter(Boolean);
+}
+
+function normalizeTicketRecords(records, players = defaultPlayerObjects) {
+  if (!Array.isArray(records)) return [];
+  return records.map((record) => ({
+    ...record,
+    playerId: record.playerId || playerIdByName(record.player, players),
   }));
 }
 
@@ -149,6 +175,28 @@ function parseTags(value) {
     .split(/[,\s，、]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function playerById(playerId) {
+  return state.players.find((player) => player.id === playerId);
+}
+
+function cardById(cardId) {
+  return state.cards.find((card) => card.id === cardId);
+}
+
+function playerIdByName(name, players = state.players) {
+  if (!name) return "";
+  const player = players.find((item) =>
+    [item.nickname, item.name, item.gameName, item.douyinName, item.wechatName].filter(Boolean).includes(name)
+  );
+  return player?.id || "";
+}
+
+function cardIdByName(name, cards = state.cards) {
+  if (!name) return "";
+  const card = cards.find((item) => item.name === name || item.alias === name);
+  return card?.id || "";
 }
 
 function saveState() {
@@ -225,9 +273,10 @@ function renderScreenshots() {
 }
 
 function lockedCards() {
+  const activePlayerIds = new Set(activePlayers().map((player) => player.id));
   return state.locks
-    .filter((player) => player.status === "alive")
-    .flatMap((player) => player.cards);
+    .filter((player) => activePlayerIds.has(player.playerId) && player.status === "alive")
+    .flatMap((player) => player.cardIds || []);
 }
 
 function cardNames() {
@@ -242,12 +291,16 @@ function activeCardNames() {
   return activeCards().map((card) => card.name);
 }
 
+function activeCardIds() {
+  return activeCards().map((card) => card.id);
+}
+
 function filteredActiveCards() {
   return activeCards().filter((card) => lockCardFilter === "all" || card.category === lockCardFilter);
 }
 
-function filteredActiveCardNames() {
-  return filteredActiveCards().map((card) => card.name);
+function filteredActiveCardIds() {
+  return filteredActiveCards().map((card) => card.id);
 }
 
 function playerNames() {
@@ -268,23 +321,22 @@ function playerDisplayName(player, index = 0) {
 }
 
 function ensureLockSlots() {
-  const count = activePlayers().length;
-  while (state.locks.length < count) {
-    state.locks.push({ status: "alive", eliminatedAt: null, cards: [], note: "" });
-  }
-  if (state.locks.length > count) {
-    state.locks = state.locks.slice(0, count);
-  }
+  activePlayers().forEach((player) => {
+    if (!state.locks.some((lock) => lock.playerId === player.id)) {
+      state.locks.push({ playerId: player.id, status: "alive", eliminatedAt: null, cardIds: [], note: "" });
+    }
+  });
+  state.locks = state.locks.filter((lock) => state.players.some((player) => player.id === lock.playerId));
 }
 
 function cardLabel(cardName) {
-  const card = state.cards.find((item) => item.name === cardName);
+  const card = cardById(cardName) || state.cards.find((item) => item.name === cardName);
   if (!card) return cardName;
   return state.displaySettings.cardNameMode === "alias" ? card.alias || card.name : card.name;
 }
 
 function cardTitle(cardName) {
-  const card = state.cards.find((item) => item.name === cardName);
+  const card = cardById(cardName) || state.cards.find((item) => item.name === cardName);
   if (!card) return cardName;
   const alias = card.alias ? `外号：${card.alias}` : "";
   const parts = [cardCategories[card.category] || "正常五费", alias, ...card.tags].filter(Boolean);
@@ -296,7 +348,7 @@ function categoryClass(category) {
 }
 
 function cardTagHtml(cardName, options = {}) {
-  const card = state.cards.find((item) => item.name === cardName);
+  const card = cardById(cardName) || state.cards.find((item) => item.name === cardName);
   const removeButton = options.remove
     ? `<button data-index="${options.index}" data-remove-card="${escapeHtml(cardName)}" type="button" aria-label="移除${escapeHtml(cardName)}">×</button>`
     : "";
@@ -312,7 +364,7 @@ function cardTagListHtml(cards, emptyText) {
 function renderLocks() {
   ensureLockSlots();
   const used = lockedCards();
-  const available = activeCardNames().filter((card) => !used.includes(card));
+  const available = activeCardIds().filter((cardId) => !used.includes(cardId));
   document.querySelector("#lockedCardsText").innerHTML = cardTagListHtml(used, "暂无");
   document.querySelector("#availableCardsText").innerHTML = cardTagListHtml(available, "暂无");
   document.querySelectorAll("[data-card-filter]").forEach((button) => {
@@ -326,10 +378,11 @@ function renderLocks() {
   });
 
   const ordered = state.locks
-    .map((player, index) => ({ ...player, index, name: activePlayerNames()[index] }))
+    .filter((lock) => activePlayers().some((player) => player.id === lock.playerId))
+    .map((player) => ({ ...player, player: playerById(player.playerId), index: state.locks.indexOf(player) }))
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === "alive" ? -1 : 1;
-      return a.index - b.index;
+      return activePlayers().findIndex((player) => player.id === a.playerId) - activePlayers().findIndex((player) => player.id === b.playerId);
     });
 
   document.querySelector("#lockTable").innerHTML = `
@@ -362,9 +415,9 @@ function renderLocks() {
 
   document.querySelectorAll("[data-add-card]").forEach((select) => {
     select.addEventListener("change", (event) => {
-      const card = event.target.value;
-      if (!card) return;
-      state.locks[event.target.dataset.index].cards.push(card);
+      const cardId = event.target.value;
+      if (!cardId) return;
+      state.locks[event.target.dataset.index].cardIds.push(cardId);
       saveState();
       renderLocks();
     });
@@ -373,8 +426,8 @@ function renderLocks() {
   document.querySelectorAll("[data-remove-card]").forEach((button) => {
     button.addEventListener("click", (event) => {
       const index = Number(event.currentTarget.dataset.index);
-      const card = event.currentTarget.dataset.removeCard;
-      state.locks[index].cards = state.locks[index].cards.filter((item) => item !== card);
+      const cardId = event.currentTarget.dataset.removeCard;
+      state.locks[index].cardIds = state.locks[index].cardIds.filter((item) => item !== cardId);
       saveState();
       renderLocks();
     });
@@ -389,19 +442,22 @@ function renderLocks() {
 }
 
 function lockRowHtml(player, used) {
+  const activePlayerIds = new Set(activePlayers().map((item) => item.id));
   const occupiedByOthers = state.locks
-    .filter((item, index) => index !== player.index && item.status === "alive")
-    .flatMap((item) => item.cards);
-  const availableForPlayer = filteredActiveCardNames().filter((card) =>
-    player.status === "eliminated" || !occupiedByOthers.includes(card) || player.cards.includes(card)
+    .filter((item) => activePlayerIds.has(item.playerId) && item.playerId !== player.playerId && item.status === "alive")
+    .flatMap((item) => item.cardIds || []);
+  const currentCardIds = player.cardIds || [];
+  const availableForPlayer = filteredActiveCardIds().filter((cardId) =>
+    player.status === "eliminated" || !occupiedByOthers.includes(cardId) || currentCardIds.includes(cardId)
   );
-  const cardTags = player.cards.length
-    ? player.cards.map((card) => cardTagHtml(card, { remove: true, index: player.index })).join("")
+  const cardTags = currentCardIds.length
+    ? currentCardIds.map((cardId) => cardTagHtml(cardId, { remove: true, index: player.index })).join("")
     : `<span class="meta">未锁牌</span>`;
+  const displayName = playerDisplayName(player.player, activePlayers().findIndex((item) => item.id === player.playerId));
 
   return `
     <tr class="${player.status === "eliminated" ? "eliminated" : ""}">
-      <td>${escapeHtml(player.name)}</td>
+      <td>${escapeHtml(displayName)}</td>
       <td>${rankText(player)}</td>
       <td>
         <select data-lock-status data-index="${player.index}">
@@ -413,7 +469,7 @@ function lockRowHtml(player, used) {
       <td>
         <select data-add-card data-index="${player.index}">
           <option value="">选择五费</option>
-          ${availableForPlayer.filter((card) => !player.cards.includes(card)).map((card) => `<option value="${escapeHtml(card)}">${escapeHtml(cardLabel(card))}</option>`).join("")}
+          ${availableForPlayer.filter((cardId) => !currentCardIds.includes(cardId)).map((cardId) => `<option value="${escapeHtml(cardId)}">${escapeHtml(cardLabel(cardId))}</option>`).join("")}
         </select>
       </td>
       <td><input data-lock-note data-index="${player.index}" value="${escapeHtml(player.note || "")}" placeholder="例如：准备追三星"></td>
@@ -423,21 +479,34 @@ function lockRowHtml(player, used) {
 
 function rankText(player) {
   if (player.status !== "eliminated") return "-";
+  const activePlayerIds = new Set(activePlayers().map((item) => item.id));
   const eliminated = state.locks
-    .filter((item) => item.status === "eliminated" && item.eliminatedAt)
+    .filter((item) => activePlayerIds.has(item.playerId) && item.status === "eliminated" && item.eliminatedAt)
     .sort((a, b) => a.eliminatedAt - b.eliminatedAt);
   const order = eliminated.indexOf(state.locks[player.index]);
   if (order < 0) return "-";
-  return `${state.locks.length - order}名`;
+  return `${activePlayers().length - order}名`;
 }
 
 function ticketPlayers() {
-  return activePlayerNames();
+  return activePlayers();
 }
 
 function renderLibrary() {
+  const playerQuery = document.querySelector("#playerLibrarySearch")?.value.trim().toLowerCase() || "";
+  const cardQuery = document.querySelector("#cardLibrarySearch")?.value.trim().toLowerCase() || "";
+  const visiblePlayers = state.players
+    .map((player, index) => ({ player, index }))
+    .filter(({ player }) => [player.nickname, player.douyinName, player.wechatName, player.gameName, player.note].join(" ").toLowerCase().includes(playerQuery));
+  const visibleCards = state.cards
+    .map((card, index) => ({ card, index }))
+    .filter(({ card }) => [card.name, card.alias, card.category, card.tags.join(" "), card.note].join(" ").toLowerCase().includes(cardQuery));
+  const playerPage = pagedRows("players", visiblePlayers);
+  const cardPage = pagedRows("cards", visibleCards);
+
   document.querySelector("#playerSettings").innerHTML = `
     <div class="player-library-head">
+      <span>编号</span>
       <span>本场</span>
       <span>昵称</span>
       <span>抖音名</span>
@@ -445,11 +514,13 @@ function renderLibrary() {
       <span>游戏名</span>
       <span>备注</span>
     </div>
-    ${state.players.map((player, index) => playerLibraryRow(player, index)).join("")}
+    ${playerPage.map(({ player, index }) => playerLibraryRow(player, index)).join("")}
   `;
+  document.querySelector("#playerLibraryPager").innerHTML = paginationHtml("players", visiblePlayers.length);
 
   document.querySelector("#cardLibrary").innerHTML = `
     <div class="card-library-head">
+      <span>编号</span>
       <span>本场</span>
       <span>名称</span>
       <span>外号</span>
@@ -458,14 +529,44 @@ function renderLibrary() {
       <span>备注</span>
       <span>操作</span>
     </div>
-    ${state.cards.map((card, index) => cardLibraryRow(card, index)).join("")}
+    ${cardPage.map(({ card, index }) => cardLibraryRow(card, index)).join("")}
+  `;
+  document.querySelector("#cardLibraryPager").innerHTML = paginationHtml("cards", visibleCards.length);
+
+  renderMatchConfig();
+}
+
+function pagedRows(type, rows) {
+  const pagination = libraryPagination[type];
+  const totalPages = Math.max(1, Math.ceil(rows.length / pagination.pageSize));
+  pagination.page = Math.min(Math.max(1, pagination.page), totalPages);
+  const start = (pagination.page - 1) * pagination.pageSize;
+  return rows.slice(start, start + pagination.pageSize);
+}
+
+function paginationHtml(type, total) {
+  const pagination = libraryPagination[type];
+  const totalPages = Math.max(1, Math.ceil(total / pagination.pageSize));
+  const start = total ? (pagination.page - 1) * pagination.pageSize + 1 : 0;
+  const end = Math.min(total, pagination.page * pagination.pageSize);
+  return `
+    <span>${start}-${end} / ${total}</span>
+    <label>
+      每页
+      <select data-library-page-size="${type}">
+        ${[8, 16, 32].map((size) => `<option value="${size}" ${pagination.pageSize === size ? "selected" : ""}>${size}</option>`).join("")}
+      </select>
+    </label>
+    <button data-library-page="${type}" data-page-step="-1" type="button" ${pagination.page <= 1 ? "disabled" : ""}>上一页</button>
+    <button data-library-page="${type}" data-page-step="1" type="button" ${pagination.page >= totalPages ? "disabled" : ""}>下一页</button>
   `;
 }
 
 function playerLibraryRow(player, index) {
   return `
     <div class="player-library-row">
-      <input data-player-active data-index="${index}" type="checkbox" ${player.active ? "checked" : ""}>
+      <span>${index + 1}</span>
+      <span class="status-pill ${player.active ? "active" : ""}">${player.active ? "本场" : "候选"}</span>
       <input data-player-nickname data-index="${index}" value="${escapeHtml(player.nickname)}" placeholder="昵称">
       <input data-player-douyin data-index="${index}" value="${escapeHtml(player.douyinName || "")}" placeholder="抖音名">
       <input data-player-wechat data-index="${index}" value="${escapeHtml(player.wechatName || "")}" placeholder="微信名">
@@ -478,7 +579,8 @@ function playerLibraryRow(player, index) {
 function cardLibraryRow(card, index) {
   return `
     <div class="card-library-row">
-      <input data-card-active data-index="${index}" type="checkbox" ${card.active ? "checked" : ""}>
+      <span>${index + 1}</span>
+      <span class="status-pill ${card.active ? "active" : ""}">${card.active ? "可用" : "备用"}</span>
       <input data-card-name data-index="${index}" value="${escapeHtml(card.name)}" placeholder="五费名称">
       <input data-card-alias data-index="${index}" value="${escapeHtml(card.alias || "")}" placeholder="外号">
       <select class="${categoryClass(card.category)}" data-card-category data-index="${index}">
@@ -491,6 +593,26 @@ function cardLibraryRow(card, index) {
       <button class="danger small" data-delete-card data-index="${index}" type="button">删除</button>
     </div>
   `;
+}
+
+function renderMatchConfig() {
+  document.querySelector("#matchPlayerPicker").innerHTML = state.players
+    .map((player, index) => `
+      <label class="picker-row">
+        <input data-match-player data-index="${index}" type="checkbox" ${player.active ? "checked" : ""}>
+        <span>${index + 1}. ${escapeHtml(player.nickname)}</span>
+      </label>
+    `)
+    .join("");
+
+  document.querySelector("#matchCardPicker").innerHTML = state.cards
+    .map((card, index) => `
+      <label class="picker-row">
+        <input data-match-card data-index="${index}" type="checkbox" ${card.active ? "checked" : ""}>
+        <span class="tag ${categoryClass(card.category)}" title="${escapeHtml(cardTitle(card.id))}">${index + 1}. ${escapeHtml(cardLabel(card.id))}</span>
+      </label>
+    `)
+    .join("");
 }
 
 function applyLibrarySettings(nextPlayers, nextCards) {
@@ -509,18 +631,21 @@ function applyLibrarySettings(nextPlayers, nextCards) {
   }));
 
   state.locks.forEach((player) => {
-    player.cards = player.cards
+    player.cardIds = (player.cardIds || player.cards || [])
       .map((card) => {
+        if (nextCards.some((item) => item.id === card)) return card;
         const cardIndex = previousCards.indexOf(card);
-        return cardIndex >= 0 ? nextCards[cardIndex]?.name : card;
+        return cardIndex >= 0 ? nextCards[cardIndex]?.id : cardIdByName(card, nextCards);
       })
-      .filter((card, index, cards) => cardNamesFrom(nextCards).includes(card) && cards.indexOf(card) === index);
+      .filter((cardId, index, cardIds) => nextCards.some((card) => card.id === cardId) && cardIds.indexOf(cardId) === index);
+    delete player.cards;
   });
 
   state.cards = nextCards;
   state.ticketRecords = state.ticketRecords.map((record) => {
     const playerIndex = previousPlayers.indexOf(record.player);
-    return playerIndex >= 0 && nextPlayers[playerIndex] ? { ...record, player: nextPlayers[playerIndex].nickname } : record;
+    if (record.playerId) return record;
+    return playerIndex >= 0 && nextPlayers[playerIndex] ? { ...record, playerId: nextPlayers[playerIndex].id, player: nextPlayers[playerIndex].nickname } : record;
   });
   ensureLockSlots();
 }
@@ -588,27 +713,35 @@ function parseCardBatch(text) {
 }
 
 function readPlayersFromInputs() {
-  return Array.from(document.querySelectorAll("[data-player-nickname]")).map((input, index) => ({
-    id: state.players[index]?.id || `player-${Date.now()}-${index}`,
-    nickname: input.value.trim() || defaultPlayers[index] || `玩家${index + 1}`,
-    douyinName: document.querySelector(`[data-player-douyin][data-index="${index}"]`).value.trim(),
-    wechatName: document.querySelector(`[data-player-wechat][data-index="${index}"]`).value.trim(),
-    gameName: document.querySelector(`[data-player-game][data-index="${index}"]`).value.trim(),
-    active: document.querySelector(`[data-player-active][data-index="${index}"]`).checked,
-    note: document.querySelector(`[data-player-note][data-index="${index}"]`).value.trim(),
-  }));
+  return state.players.map((player, index) => {
+    const nicknameInput = document.querySelector(`[data-player-nickname][data-index="${index}"]`);
+    if (!nicknameInput) return player;
+    return {
+      id: player.id,
+      nickname: nicknameInput.value.trim() || defaultPlayers[index] || `玩家${index + 1}`,
+      douyinName: document.querySelector(`[data-player-douyin][data-index="${index}"]`).value.trim(),
+      wechatName: document.querySelector(`[data-player-wechat][data-index="${index}"]`).value.trim(),
+      gameName: document.querySelector(`[data-player-game][data-index="${index}"]`).value.trim(),
+      active: player.active,
+      note: document.querySelector(`[data-player-note][data-index="${index}"]`).value.trim(),
+    };
+  });
 }
 
 function readCardsFromInputs() {
-  return Array.from(document.querySelectorAll("[data-card-name]")).map((input, index) => ({
-    id: state.cards[index]?.id || `card-${Date.now()}-${index}`,
-    name: input.value.trim() || defaultCards[index] || `五费${index + 1}`,
-    alias: document.querySelector(`[data-card-alias][data-index="${index}"]`).value.trim(),
-    active: document.querySelector(`[data-card-active][data-index="${index}"]`).checked,
-    category: document.querySelector(`[data-card-category][data-index="${index}"]`).value,
-    tags: parseTags(document.querySelector(`[data-card-tags][data-index="${index}"]`).value),
-    note: document.querySelector(`[data-card-note][data-index="${index}"]`).value.trim(),
-  }));
+  return state.cards.map((card, index) => {
+    const nameInput = document.querySelector(`[data-card-name][data-index="${index}"]`);
+    if (!nameInput) return card;
+    return {
+      id: card.id,
+      name: nameInput.value.trim() || defaultCards[index] || `五费${index + 1}`,
+      alias: document.querySelector(`[data-card-alias][data-index="${index}"]`).value.trim(),
+      active: card.active,
+      category: document.querySelector(`[data-card-category][data-index="${index}"]`).value,
+      tags: parseTags(document.querySelector(`[data-card-tags][data-index="${index}"]`).value),
+      note: document.querySelector(`[data-card-note][data-index="${index}"]`).value.trim(),
+    };
+  });
 }
 
 function saveLibrary(nextPlayers, nextCards) {
@@ -641,17 +774,18 @@ function saveLibrary(nextPlayers, nextCards) {
 }
 
 function ticketBalances() {
-  const balances = Object.fromEntries(ticketPlayers().map((name) => [name, 0]));
+  const balances = Object.fromEntries(ticketPlayers().map((player) => [player.id, 0]));
   state.ticketRecords.forEach((record) => {
-    if (!(record.player in balances)) balances[record.player] = 0;
-    balances[record.player] += record.type === "deposit" ? record.amount : -record.amount;
+    const playerId = record.playerId || playerIdByName(record.player);
+    if (!(playerId in balances)) balances[playerId] = 0;
+    balances[playerId] += record.type === "deposit" ? record.amount : -record.amount;
   });
   return balances;
 }
 
 function renderTicketOptions() {
   document.querySelector("#ticketPlayer").innerHTML = ticketPlayers()
-    .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+    .map((player, index) => `<option value="${escapeHtml(player.id)}">${escapeHtml(playerDisplayName(player, index))}</option>`)
     .join("");
 }
 
@@ -659,9 +793,9 @@ function renderTickets() {
   const balances = ticketBalances();
   const rank = Object.entries(balances).sort((a, b) => b[1] - a[1]);
   document.querySelector("#ticketRank").innerHTML = rank
-    .map(([player, balance], index) => `
+    .map(([playerId, balance], index) => `
       <div class="rank-row">
-        <span>${index + 1}. ${escapeHtml(player)}</span>
+        <span>${index + 1}. ${escapeHtml(playerDisplayName(playerById(playerId) || { nickname: "未知玩家" }, index))}</span>
         <span class="balance">${balance}</span>
       </div>
     `)
@@ -672,13 +806,18 @@ function renderTickets() {
     ? history.map((record) => `
       <div class="history-row">
         <div>
-          <strong>${escapeHtml(record.player)}</strong>
+          <strong>${escapeHtml(ticketRecordPlayerName(record))}</strong>
           <small>${formatTime(record.createdAt)} · ${record.note ? escapeHtml(record.note) : "无备注"}</small>
         </div>
         <span class="balance">${record.type === "deposit" ? "+" : "-"}${record.amount}</span>
       </div>
     `).join("")
     : `<div class="empty">暂无存票记录。</div>`;
+}
+
+function ticketRecordPlayerName(record) {
+  const player = playerById(record.playerId) || playerById(playerIdByName(record.player));
+  return player ? playerDisplayName(player) : record.player || "未知玩家";
 }
 
 function escapeHtml(value) {
@@ -718,6 +857,49 @@ document.querySelector("#cardNameMode").addEventListener("click", (event) => {
   renderLocks();
 });
 
+document.querySelector("#matchPlayerPicker").addEventListener("change", (event) => {
+  const input = event.target.closest("[data-match-player]");
+  if (!input) return;
+  const nextPlayers = readPlayersFromInputs();
+  nextPlayers[Number(input.dataset.index)].active = input.checked;
+  saveLibrary(nextPlayers, readCardsFromInputs());
+});
+
+document.querySelector("#matchCardPicker").addEventListener("change", (event) => {
+  const input = event.target.closest("[data-match-card]");
+  if (!input) return;
+  const nextCards = readCardsFromInputs();
+  nextCards[Number(input.dataset.index)].active = input.checked;
+  saveLibrary(readPlayersFromInputs(), nextCards);
+});
+
+document.querySelector("#playerLibrarySearch").addEventListener("input", () => {
+  libraryPagination.players.page = 1;
+  renderLibrary();
+});
+document.querySelector("#cardLibrarySearch").addEventListener("input", () => {
+  libraryPagination.cards.page = 1;
+  renderLibrary();
+});
+
+document.querySelectorAll(".pager").forEach((pager) => {
+  pager.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-library-page]");
+    if (!button) return;
+    const type = button.dataset.libraryPage;
+    libraryPagination[type].page += Number(button.dataset.pageStep);
+    renderLibrary();
+  });
+  pager.addEventListener("change", (event) => {
+    const select = event.target.closest("[data-library-page-size]");
+    if (!select) return;
+    const type = select.dataset.libraryPageSize;
+    libraryPagination[type].pageSize = Number(select.value);
+    libraryPagination[type].page = 1;
+    renderLibrary();
+  });
+});
+
 document.querySelector("#screenshotForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const file = document.querySelector("#shotFile").files[0];
@@ -746,7 +928,7 @@ document.querySelector("#ticketForm").addEventListener("submit", (event) => {
 
   state.ticketRecords.push({
     id: uid(),
-    player: document.querySelector("#ticketPlayer").value,
+    playerId: document.querySelector("#ticketPlayer").value,
     type: document.querySelector("#ticketType").value,
     amount,
     note: document.querySelector("#ticketNote").value.trim(),
@@ -768,12 +950,14 @@ document.querySelector("#importData").addEventListener("change", async (event) =
   try {
     const imported = JSON.parse(await file.text());
     const players = normalizePlayers(imported.players, imported.locks);
+    const cards = normalizeCards(imported.cards);
     state = {
       screenshots: Array.isArray(imported.screenshots) ? imported.screenshots : [],
       players,
-      cards: normalizeCards(imported.cards),
-      locks: normalizeLocks(imported.locks),
-      ticketRecords: Array.isArray(imported.ticketRecords) ? imported.ticketRecords : [],
+      cards,
+      displaySettings: normalizeDisplaySettings(imported.displaySettings),
+      locks: normalizeLocks(imported.locks, players, cards),
+      ticketRecords: normalizeTicketRecords(imported.ticketRecords, players),
     };
     saveState();
     renderAll();
@@ -791,11 +975,7 @@ document.querySelector("#resetData").addEventListener("click", () => {
 });
 
 document.querySelector("#resetLocks").addEventListener("click", () => {
-  state.locks = state.locks.map(() => ({
-    status: "alive",
-    cards: [],
-    note: "",
-  }));
+  state.locks = activePlayers().map((player) => ({ playerId: player.id, status: "alive", eliminatedAt: null, cardIds: [], note: "" }));
   saveState();
   renderLocks();
   renderTicketOptions();
@@ -861,11 +1041,11 @@ document.querySelector("#cardLibrary").addEventListener("click", (event) => {
     return;
   }
   const index = Number(button.dataset.index);
-  const cardName = state.cards[index].name;
-  if (!confirm(`确认删除「${cardName}」？已有锁牌中的这张卡也会被移除。`)) return;
+  const card = state.cards[index];
+  if (!confirm(`确认删除「${card.name}」？已有锁牌中的这张卡也会被移除。`)) return;
   state.cards.splice(index, 1);
   state.locks.forEach((player) => {
-    player.cards = player.cards.filter((card) => card !== cardName);
+    player.cardIds = (player.cardIds || []).filter((cardId) => cardId !== card.id);
   });
   saveState();
   renderAll();

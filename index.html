@@ -110,6 +110,20 @@
         </div>
       </div>
 
+      <details class="match-config">
+        <summary>本场玩家与五费配置</summary>
+        <div class="match-config-grid">
+          <div>
+            <h3>本场玩家</h3>
+            <div id="matchPlayerPicker" class="picker-list"></div>
+          </div>
+          <div>
+            <h3>本场五费</h3>
+            <div id="matchCardPicker" class="picker-list"></div>
+          </div>
+        </div>
+      </details>
+
       <div id="lockTable" class="table-wrap"></div>
     </section>
 
@@ -175,6 +189,8 @@
             <button id="parsePlayers" type="button">解析玩家文本</button>
             <button id="savePlayers" type="button">保存玩家名单</button>
           </div>
+          <input id="playerLibrarySearch" class="search" type="search" placeholder="筛选玩家资料">
+          <div id="playerLibraryPager" class="pager"></div>
           <div id="playerSettings" class="settings-list"></div>
         </section>
 
@@ -186,6 +202,8 @@
             <button id="parseCards" type="button">解析五费文本</button>
             <button id="addCard" type="button">新增五费</button>
           </div>
+          <input id="cardLibrarySearch" class="search" type="search" placeholder="筛选五费资料">
+          <div id="cardLibraryPager" class="pager"></div>
           <div id="cardLibrary" class="card-library"></div>
         </section>
       </div>
