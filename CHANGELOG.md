@@ -76,6 +76,33 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-11 11:28 增加对局历史快照
+
+#### 摘要
+
+- 锁牌管理新增“对局历史”区域。
+- 支持输入名称并保存当前对局快照。
+- 对局快照会记录本场玩家、本场五费和当前锁牌状态。
+- 历史对局支持恢复，恢复时会替换当前本场配置和锁牌状态。
+- 历史对局支持删除。
+- 导入导出 JSON 会包含历史对局快照。
+
+#### 说明
+
+这是历史对局的最小版本，暂时不把截图图片和存票流水归入单局历史。这样可以先验证“保存和恢复一局锁牌配置”是否有价值，再决定后续是否扩展为完整对局档案。
+
+#### 本次变更的 Git 命令
+
+```powershell
+git status --short --branch
+git diff
+node --check .\app.js
+git diff --check
+git add app.js index.html styles.css README.md CHANGELOG.md docs/项目状态.md
+git commit -m "增加对局历史快照"
+git log --oneline -5
+```
+
 ### 2026-06-11 11:11 压缩本场五费配置样式
 
 #### 摘要

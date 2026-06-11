@@ -436,6 +436,59 @@ label select {
   border-bottom-style: dashed;
 }
 
+.match-history {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  margin-top: 16px;
+  padding: 12px;
+}
+
+.match-history > summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.history-actions {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.match-history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.match-history-row {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.match-history-row strong,
+.match-history-row small {
+  display: block;
+}
+
+.match-history-row small {
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.history-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .picker-list {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -818,6 +871,12 @@ tr.eliminated {
 
   .candidate-tools {
     grid-template-columns: 1fr;
+  }
+
+  .history-actions,
+  .match-history-row {
+    grid-template-columns: 1fr;
+    display: grid;
   }
 
   .settings-grid {

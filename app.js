@@ -43,6 +43,7 @@ const initialState = {
     note: "",
   })),
   ticketRecords: [],
+  matchHistory: [],
 };
 
 let state = loadState();
@@ -65,6 +66,7 @@ function loadState() {
       displaySettings: normalizeDisplaySettings(saved.displaySettings),
       locks: normalizeLocks(saved.locks, players, cards),
       ticketRecords: normalizeTicketRecords(saved.ticketRecords, players),
+      matchHistory: normalizeMatchHistory(saved.matchHistory, players, cards),
     };
   } catch {
     return structuredClone(initialState);
@@ -167,6 +169,21 @@ function normalizeTicketRecords(records, players = defaultPlayerObjects) {
   return records.map((record) => ({
     ...record,
     playerId: record.playerId || playerIdByName(record.player, players),
+  }));
+}
+
+function normalizeMatchHistory(records, players = defaultPlayerObjects, cards = defaultCardObjects) {
+  if (!Array.isArray(records)) return [];
+  const playerIds = new Set(players.map((player) => player.id));
+  const cardIds = new Set(cards.map((card) => card.id));
+  return records.map((record, index) => ({
+    id: record.id || `match-${index + 1}`,
+    name: String(record.name || "").trim() || `历史对局 ${index + 1}`,
+    createdAt: Number.isFinite(record.createdAt) ? record.createdAt : Date.now(),
+    note: record.note || "",
+    playerIds: Array.isArray(record.playerIds) ? record.playerIds.filter((playerId) => playerIds.has(playerId)).slice(0, 8) : [],
+    cardIds: Array.isArray(record.cardIds) ? record.cardIds.filter((cardId) => cardIds.has(cardId)) : [],
+    locks: normalizeLocks(record.locks, players, cards),
   }));
 }
 
@@ -729,6 +746,78 @@ function updateCardActive(index, active) {
   saveLibrary(readPlayersFromInputs(), nextCards);
 }
 
+function currentMatchSnapshot(name) {
+  ensureLockSlots();
+  const playerIds = activePlayers().map((player) => player.id);
+  const cardIds = activeCardIds();
+  const lockPlayerIds = new Set(playerIds);
+  return {
+    id: uid(),
+    name: name || `对局 ${formatTime(Date.now())}`,
+    createdAt: Date.now(),
+    note: "",
+    playerIds,
+    cardIds,
+    locks: state.locks
+      .filter((lock) => lockPlayerIds.has(lock.playerId))
+      .map((lock) => ({
+        playerId: lock.playerId,
+        status: lock.status,
+        eliminatedAt: lock.eliminatedAt,
+        cardIds: sortCardIds((lock.cardIds || []).filter((cardId) => cardIds.includes(cardId))),
+        note: lock.note || "",
+      })),
+  };
+}
+
+function renderMatchHistory() {
+  const list = document.querySelector("#matchHistoryList");
+  if (!state.matchHistory.length) {
+    list.innerHTML = `<div class="empty">暂无历史对局。</div>`;
+    return;
+  }
+  list.innerHTML = state.matchHistory
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map((record) => matchHistoryRowHtml(record))
+    .join("");
+}
+
+function matchHistoryRowHtml(record) {
+  return `
+    <div class="match-history-row">
+      <div>
+        <strong>${escapeHtml(record.name)}</strong>
+        <small>${formatTime(record.createdAt)} · ${record.playerIds.length} 名玩家 · ${record.cardIds.length} 张五费</small>
+      </div>
+      <div class="history-row-actions">
+        <button data-restore-match="${escapeHtml(record.id)}" type="button">恢复</button>
+        <button class="danger" data-delete-match="${escapeHtml(record.id)}" type="button">删除</button>
+      </div>
+    </div>
+  `;
+}
+
+function restoreMatchSnapshot(recordId) {
+  const record = state.matchHistory.find((item) => item.id === recordId);
+  if (!record) return;
+  if (!confirm(`确认恢复「${record.name}」？当前本场配置和锁牌状态会被替换。`)) return;
+  const playerIds = new Set(record.playerIds);
+  const cardIds = new Set(record.cardIds);
+  state.players = state.players.map((player) => ({ ...player, active: playerIds.has(player.id) }));
+  state.cards = state.cards.map((card) => ({ ...card, active: cardIds.has(card.id) }));
+  state.locks = record.locks.map((lock) => ({
+    playerId: lock.playerId,
+    status: lock.status === "eliminated" ? "eliminated" : "alive",
+    eliminatedAt: Number.isFinite(lock.eliminatedAt) ? lock.eliminatedAt : null,
+    cardIds: sortCardIds(lock.cardIds || []),
+    note: lock.note || "",
+  }));
+  ensureLockSlots();
+  saveState();
+  renderAll();
+}
+
 function quickConfigureCardsByTag() {
   const tag = document.querySelector("#matchCardTagFilter").value;
   if (tag === "all") {
@@ -1122,6 +1211,7 @@ document.querySelector("#importData").addEventListener("change", async (event) =
       displaySettings: normalizeDisplaySettings(imported.displaySettings),
       locks: normalizeLocks(imported.locks, players, cards),
       ticketRecords: normalizeTicketRecords(imported.ticketRecords, players),
+      matchHistory: normalizeMatchHistory(imported.matchHistory, players, cards),
     };
     saveState();
     renderAll();
@@ -1151,6 +1241,30 @@ document.querySelector("#resetTickets").addEventListener("click", () => {
   state.ticketRecords = [];
   saveState();
   renderTickets();
+});
+
+document.querySelector("#saveMatchSnapshot").addEventListener("click", () => {
+  const nameInput = document.querySelector("#matchSnapshotName");
+  const snapshot = currentMatchSnapshot(nameInput.value.trim());
+  state.matchHistory.push(snapshot);
+  saveState();
+  nameInput.value = "";
+  renderMatchHistory();
+});
+
+document.querySelector("#matchHistoryList").addEventListener("click", (event) => {
+  const restoreButton = event.target.closest("[data-restore-match]");
+  if (restoreButton) {
+    restoreMatchSnapshot(restoreButton.dataset.restoreMatch);
+    return;
+  }
+  const deleteButton = event.target.closest("[data-delete-match]");
+  if (!deleteButton) return;
+  const record = state.matchHistory.find((item) => item.id === deleteButton.dataset.deleteMatch);
+  if (!record || !confirm(`确认删除「${record.name}」？`)) return;
+  state.matchHistory = state.matchHistory.filter((item) => item.id !== record.id);
+  saveState();
+  renderMatchHistory();
 });
 
 document.querySelector("#parsePlayers").addEventListener("click", () => {
@@ -1226,6 +1340,7 @@ function renderAll() {
   renderLocks();
   renderTicketOptions();
   renderTickets();
+  renderMatchHistory();
 }
 
 renderAll();
