@@ -80,6 +80,51 @@
         <button id="startNewMatch" type="button">开始新对局</button>
       </div>
 
+      <details class="match-config">
+        <summary>
+          <span class="summary-title">本场配置</span>
+          <div id="matchConfigActions" class="match-config-actions">
+            <small id="matchConfigSummary">未配置</small>
+            <select id="matchCardSeasonFilter" aria-label="本场赛季">
+              <option value="all">全部赛季</option>
+            </select>
+            <button id="quickSeasonConfig" type="button">按赛季配置</button>
+          </div>
+        </summary>
+        <div class="match-config-grid">
+          <div class="match-config-players">
+            <h3>本场玩家</h3>
+            <div id="matchPlayerList" class="match-selected-list"></div>
+            <details class="add-panel">
+              <summary>添加玩家</summary>
+              <input id="matchPlayerSearch" class="search" type="search" placeholder="搜索候选玩家">
+              <div id="matchPlayerPicker" class="candidate-list"></div>
+            </details>
+          </div>
+          <div class="match-config-cards">
+            <h3>本场五费</h3>
+            <div id="matchCardList" class="match-card-groups"></div>
+            <details class="add-panel">
+              <summary>添加五费</summary>
+              <div class="candidate-tools">
+                <input id="matchCardSearch" class="search" type="search" placeholder="搜索候选五费">
+                <select id="matchCardCategoryFilter">
+                  <option value="all">全部分类</option>
+                  <option value="normal">正常五费</option>
+                  <option value="unlocked">解锁五费</option>
+                  <option value="optional">可选五费</option>
+                </select>
+                <select id="matchCardTagFilter">
+                  <option value="all">全部标签</option>
+                </select>
+                <button id="addFilteredCards" type="button">添加筛选</button>
+              </div>
+              <div id="matchCardPicker" class="candidate-list"></div>
+            </details>
+          </div>
+        </div>
+      </details>
+
       <div class="lock-summary">
         <div>
           <strong>已锁</strong>
@@ -118,49 +163,6 @@
           </div>
         </div>
       </div>
-
-      <details class="match-config">
-        <summary>
-          <span>本场配置</span>
-          <small id="matchConfigSummary">未配置</small>
-        </summary>
-        <div class="match-config-grid">
-          <div class="match-config-players">
-            <h3>本场玩家</h3>
-            <div id="matchPlayerList" class="match-selected-list"></div>
-            <details class="add-panel">
-              <summary>添加玩家</summary>
-              <input id="matchPlayerSearch" class="search" type="search" placeholder="搜索候选玩家">
-              <div id="matchPlayerPicker" class="candidate-list"></div>
-            </details>
-          </div>
-          <div class="match-config-cards">
-            <h3>本场五费</h3>
-            <div id="matchCardList" class="match-card-groups"></div>
-            <details class="add-panel">
-              <summary>添加五费</summary>
-              <div class="candidate-tools">
-                <input id="matchCardSearch" class="search" type="search" placeholder="搜索候选五费">
-                <select id="matchCardCategoryFilter">
-                  <option value="all">全部分类</option>
-                  <option value="normal">正常五费</option>
-                  <option value="unlocked">解锁五费</option>
-                  <option value="optional">可选五费</option>
-                </select>
-                <select id="matchCardSeasonFilter">
-                  <option value="all">全部赛季</option>
-                </select>
-                <select id="matchCardTagFilter">
-                  <option value="all">全部标签</option>
-                </select>
-                <button id="quickSeasonConfig" type="button">按赛季配置</button>
-                <button id="addFilteredCards" type="button">添加筛选</button>
-              </div>
-              <div id="matchCardPicker" class="candidate-list"></div>
-            </details>
-          </div>
-        </div>
-      </details>
 
       <div id="lockTable" class="table-wrap"></div>
 

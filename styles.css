@@ -300,17 +300,55 @@ label select {
   display: flex;
   gap: 12px;
   justify-content: space-between;
+  list-style: none;
 }
 
-.match-config > summary span {
+.match-config > summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary-title {
+  align-items: center;
   color: var(--accent);
+  display: inline-flex;
   font-weight: 700;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.summary-title::before {
+  content: "▸";
+  font-size: 12px;
+}
+
+.match-config[open] .summary-title::before {
+  content: "▾";
 }
 
 .match-config > summary small {
   color: var(--muted);
   font-size: 13px;
   font-weight: 500;
+}
+
+.match-config-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.match-config-actions select {
+  min-height: 32px;
+  min-width: 130px;
+}
+
+.match-config-actions button {
+  min-height: 32px;
+  padding: 6px 10px;
+  white-space: nowrap;
 }
 
 .match-config-grid {
@@ -916,6 +954,16 @@ tr.eliminated {
 
   .match-config-grid {
     grid-template-columns: 1fr;
+  }
+
+  .match-config > summary {
+    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .match-config-actions {
+    justify-content: flex-start;
   }
 
   .candidate-tools {

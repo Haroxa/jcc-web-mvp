@@ -1186,6 +1186,10 @@ document.querySelector("#matchCardCategoryFilter").addEventListener("change", re
 document.querySelector("#matchCardSeasonFilter").addEventListener("change", renderMatchCardCandidates);
 document.querySelector("#matchCardTagFilter").addEventListener("change", renderMatchCardCandidates);
 
+document.querySelector("#matchConfigActions").addEventListener("click", (event) => {
+  event.stopPropagation();
+});
+
 document.querySelector("#quickSeasonConfig").addEventListener("click", quickConfigureCardsByTag);
 
 document.querySelector("#addFilteredCards").addEventListener("click", () => {
