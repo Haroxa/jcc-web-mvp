@@ -315,9 +315,15 @@ label select {
 
 .match-config-grid {
   display: grid;
-  grid-template-columns: 0.9fr 1.1fr;
+  grid-template-columns: minmax(180px, 0.36fr) minmax(0, 1fr);
   gap: 16px;
   margin-top: 12px;
+  min-width: 0;
+}
+
+.match-config-players,
+.match-config-cards {
+  min-width: 0;
 }
 
 .match-config-grid h3 {
@@ -399,10 +405,26 @@ label select {
 }
 
 .candidate-tools {
-  display: grid;
-  grid-template-columns: minmax(160px, 1fr) 120px 140px 140px auto auto;
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 10px 0;
+  max-width: 100%;
+}
+
+.candidate-tools .search {
+  flex: 1 1 220px;
+}
+
+.candidate-tools select {
+  flex: 1 1 120px;
+  min-width: 120px;
+}
+
+.candidate-tools button {
+  flex: 0 1 auto;
+  white-space: nowrap;
 }
 
 .candidate-list {
@@ -410,8 +432,9 @@ label select {
   border-radius: 8px;
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  max-height: 220px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  max-height: 180px;
+  max-width: 100%;
   overflow: auto;
   padding: 8px;
 }
@@ -896,7 +919,14 @@ tr.eliminated {
   }
 
   .candidate-tools {
-    grid-template-columns: 1fr;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .candidate-tools .search,
+  .candidate-tools select,
+  .candidate-tools button {
+    width: 100%;
   }
 
   .history-actions,
