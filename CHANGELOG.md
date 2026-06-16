@@ -77,6 +77,34 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-16 14:49 拆分五费赛季字段
+
+#### 摘要
+
+- 五费资料新增 `season` 赛季字段。
+- 旧数据兼容：如果旧五费没有 `season`，会把原 `tags` 的第一个标签迁移为赛季，剩余标签继续保留。
+- 基础资料五费表新增“赛季”列。
+- 五费批量解析升级为 `名称|外号 分类 赛季 标签`。
+- 本场五费添加面板拆分为“赛季筛选”和“标签筛选”。
+- “按标签配置”升级为“按赛季配置”。
+- README、项目状态和功能设计安排文档同步更新。
+
+#### 说明
+
+这次完成基础资料升级的关键一步：赛季不再和普通标签混用。后续移动端优化和历史对局详情可以基于更稳定的五费资料结构继续推进。
+
+#### 本次变更的 Git 命令
+
+```powershell
+git status --short --branch
+git diff
+node --check .\app.js
+git diff --check
+git add app.js index.html styles.css README.md CHANGELOG.md docs/项目状态.md docs/功能设计安排.md
+git commit -m "拆分五费赛季字段"
+git log --oneline -5
+```
+
 ### 2026-06-11 13:11 新增功能设计安排文档
 
 #### 摘要

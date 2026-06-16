@@ -147,10 +147,13 @@
                   <option value="unlocked">解锁五费</option>
                   <option value="optional">可选五费</option>
                 </select>
-                <select id="matchCardTagFilter">
-                  <option value="all">全部赛季/标签</option>
+                <select id="matchCardSeasonFilter">
+                  <option value="all">全部赛季</option>
                 </select>
-                <button id="quickSeasonConfig" type="button">按标签配置</button>
+                <select id="matchCardTagFilter">
+                  <option value="all">全部标签</option>
+                </select>
+                <button id="quickSeasonConfig" type="button">按赛季配置</button>
                 <button id="addFilteredCards" type="button">添加筛选</button>
               </div>
               <div id="matchCardPicker" class="candidate-list"></div>
@@ -240,8 +243,8 @@
 
         <section class="library-section">
           <h3>五费卡资料</h3>
-          <p class="meta">每行一张卡：名称|外号 分类 标签。分类支持“正常五费”“解锁五费”“可选五费”。</p>
-          <textarea id="cardBatch" rows="5" placeholder="瑟提|万豪 正常五费 S14&#10;索拉卡|奶妈 可选五费 新春使者"></textarea>
+          <p class="meta">每行一张卡：名称|外号 分类 赛季 标签。分类支持“正常五费”“解锁五费”“可选五费”。</p>
+          <textarea id="cardBatch" rows="5" placeholder="瑟提|万豪 正常五费 S4.5福星&#10;索拉卡|奶妈 可选五费 S4.5福星 新春使者"></textarea>
           <div class="inline-actions">
             <button id="parseCards" type="button">解析五费文本</button>
             <button id="addCard" type="button">新增五费</button>

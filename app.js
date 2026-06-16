@@ -22,6 +22,7 @@ const defaultCardObjects = defaultCards.map((name, index) => ({
   name,
   alias: "",
   category: "normal",
+  season: "",
   active: true,
   tags: [],
   note: "",
@@ -116,18 +117,22 @@ function normalizeCards(cards) {
         name: card.trim() || defaultCards[index] || `五费${index + 1}`,
         alias: "",
         category: "normal",
+        season: "",
         active: true,
         tags: [],
         note: "",
       };
     }
+    const parsedTags = Array.isArray(card.tags) ? card.tags.map((tag) => String(tag).trim()).filter(Boolean) : parseTags(card.tags);
+    const season = String(card.season || "").trim() || parsedTags[0] || "";
     return {
       id: card.id || `card-${index + 1}`,
       name: String(card.name || "").trim() || defaultCards[index] || `五费${index + 1}`,
       alias: String(card.alias || "").trim(),
       category: normalizeCardCategory(card.category),
+      season,
       active: typeof card.active === "boolean" ? card.active : true,
-      tags: Array.isArray(card.tags) ? card.tags.map((tag) => String(tag).trim()).filter(Boolean) : parseTags(card.tags),
+      tags: card.season ? parsedTags : parsedTags.slice(1),
       note: card.note || "",
     };
   });
@@ -378,7 +383,8 @@ function cardTitle(cardName) {
   const card = cardById(cardName) || state.cards.find((item) => item.name === cardName);
   if (!card) return cardName;
   const alias = card.alias ? `外号：${card.alias}` : "";
-  const parts = [cardCategories[card.category] || "正常五费", alias, ...card.tags].filter(Boolean);
+  const season = card.season ? `赛季：${card.season}` : "";
+  const parts = [cardCategories[card.category] || "正常五费", alias, season, ...card.tags].filter(Boolean);
   return `${card.name}：${parts.join("、")}`;
 }
 
@@ -562,7 +568,7 @@ function renderLibrary() {
     .filter(({ player }) => [player.nickname, player.douyinName, player.wechatName, player.gameName, player.note].join(" ").toLowerCase().includes(playerQuery));
   const visibleCards = state.cards
     .map((card, index) => ({ card, index }))
-    .filter(({ card }) => [card.name, card.alias, card.category, card.tags.join(" "), card.note].join(" ").toLowerCase().includes(cardQuery));
+    .filter(({ card }) => [card.name, card.alias, card.category, card.season, card.tags.join(" "), card.note].join(" ").toLowerCase().includes(cardQuery));
   const playerPage = pagedRows("players", visiblePlayers);
   const cardPage = pagedRows("cards", visibleCards);
 
@@ -585,6 +591,7 @@ function renderLibrary() {
       <span>名称</span>
       <span>外号</span>
       <span>分类</span>
+      <span>赛季</span>
       <span>标签</span>
       <span>备注</span>
       <span>操作</span>
@@ -644,7 +651,8 @@ function cardLibraryRow(card, index) {
         <option value="unlocked" ${card.category === "unlocked" ? "selected" : ""}>解锁五费</option>
         <option value="optional" ${card.category === "optional" ? "selected" : ""}>可选五费</option>
       </select>
-      <input data-card-tags data-index="${index}" value="${escapeHtml(card.tags.join("、"))}" placeholder="例如：S14、主C">
+      <input data-card-season data-index="${index}" value="${escapeHtml(card.season || "")}" placeholder="例如：S4.5福星">
+      <input data-card-tags data-index="${index}" value="${escapeHtml(card.tags.join("、"))}" placeholder="例如：新春使者">
       <input data-card-note data-index="${index}" value="${escapeHtml(card.note || "")}" placeholder="备注">
       <button class="danger small" data-delete-card data-index="${index}" type="button">删除</button>
     </div>
@@ -723,6 +731,7 @@ function renderMatchPlayerCandidates() {
 }
 
 function renderMatchCardCandidates() {
+  renderMatchCardSeasonOptions();
   renderMatchCardTagOptions();
   const candidates = matchCardCandidates();
   document.querySelector("#matchCardPicker").innerHTML = candidates.length
@@ -735,24 +744,34 @@ function renderMatchCardCandidates() {
     : `<div class="empty">没有可添加五费。</div>`;
 }
 
+function renderMatchCardSeasonOptions() {
+  const select = document.querySelector("#matchCardSeasonFilter");
+  const currentValue = select.value || "all";
+  const seasons = [...new Set(state.cards.map((card) => card.season).filter(Boolean))];
+  select.innerHTML = `<option value="all">全部赛季</option>${seasons.map((season) => `<option value="${escapeHtml(season)}">${escapeHtml(season)}</option>`).join("")}`;
+  select.value = seasons.includes(currentValue) ? currentValue : "all";
+}
+
 function renderMatchCardTagOptions() {
   const select = document.querySelector("#matchCardTagFilter");
   const currentValue = select.value || "all";
   const tags = [...new Set(state.cards.flatMap((card) => card.tags || []))];
-  select.innerHTML = `<option value="all">全部赛季/标签</option>${tags.map((tag) => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`).join("")}`;
+  select.innerHTML = `<option value="all">全部标签</option>${tags.map((tag) => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`).join("")}`;
   select.value = tags.includes(currentValue) ? currentValue : "all";
 }
 
 function matchCardCandidates() {
   const query = document.querySelector("#matchCardSearch")?.value.trim().toLowerCase() || "";
   const category = document.querySelector("#matchCardCategoryFilter")?.value || "all";
+  const season = document.querySelector("#matchCardSeasonFilter")?.value || "all";
   const tag = document.querySelector("#matchCardTagFilter")?.value || "all";
   return state.cards
     .map((card, index) => ({ card, index }))
     .filter(({ card }) => !card.active)
     .filter(({ card }) => category === "all" || card.category === category)
+    .filter(({ card }) => season === "all" || card.season === season)
     .filter(({ card }) => tag === "all" || (card.tags || []).includes(tag))
-    .filter(({ card }) => [card.name, card.alias, card.category, card.tags.join(" "), card.note].join(" ").toLowerCase().includes(query));
+    .filter(({ card }) => [card.name, card.alias, card.category, card.season, card.tags.join(" "), card.note].join(" ").toLowerCase().includes(query));
 }
 
 function updatePlayerActive(index, active) {
@@ -869,13 +888,13 @@ function restoreMatchSnapshot(recordId) {
 }
 
 function quickConfigureCardsByTag() {
-  const tag = document.querySelector("#matchCardTagFilter").value;
-  if (tag === "all") {
-    alert("请先选择一个赛季/标签。");
+  const season = document.querySelector("#matchCardSeasonFilter").value;
+  if (season === "all") {
+    alert("请先选择一个赛季。");
     return;
   }
   const nextCards = readCardsFromInputs().map((card) => ({ ...card, active: false }));
-  const matchedCards = nextCards.filter((card) => (card.tags || []).includes(tag));
+  const matchedCards = nextCards.filter((card) => card.season === season);
   matchedCards
     .filter((card) => card.category === "normal" || card.category === "unlocked")
     .forEach((card) => {
@@ -974,14 +993,15 @@ function parseCardBatch(text) {
       const categoryIndex = parts.findIndex((part) => ["正常五费", "解锁五费", "可选五费"].includes(part));
       const name = rawName || `五费${index + 1}`;
       const category = categoryIndex >= 0 ? normalizeCardCategory(parts[categoryIndex]) : "normal";
-      const tags = parts.filter((part, partIndex) => partIndex !== 0 && partIndex !== categoryIndex);
+      const extras = parts.filter((part, partIndex) => partIndex !== 0 && partIndex !== categoryIndex);
       return {
         id: `card-${Date.now()}-${index}`,
         name,
         alias,
         category,
+        season: extras[0] || "",
         active: true,
-        tags,
+        tags: extras.slice(1),
         note: "",
       };
     });
@@ -1013,6 +1033,7 @@ function readCardsFromInputs() {
       alias: document.querySelector(`[data-card-alias][data-index="${index}"]`).value.trim(),
       active: card.active,
       category: document.querySelector(`[data-card-category][data-index="${index}"]`).value,
+      season: document.querySelector(`[data-card-season][data-index="${index}"]`).value.trim(),
       tags: parseTags(document.querySelector(`[data-card-tags][data-index="${index}"]`).value),
       note: document.querySelector(`[data-card-note][data-index="${index}"]`).value.trim(),
     };
@@ -1162,6 +1183,7 @@ document.querySelector("#matchCardPicker").addEventListener("click", (event) => 
 
 document.querySelector("#matchCardSearch").addEventListener("input", renderMatchCardCandidates);
 document.querySelector("#matchCardCategoryFilter").addEventListener("change", renderMatchCardCandidates);
+document.querySelector("#matchCardSeasonFilter").addEventListener("change", renderMatchCardCandidates);
 document.querySelector("#matchCardTagFilter").addEventListener("change", renderMatchCardCandidates);
 
 document.querySelector("#quickSeasonConfig").addEventListener("click", quickConfigureCardsByTag);
@@ -1357,6 +1379,7 @@ document.querySelector("#addCard").addEventListener("click", () => {
     id: `card-${Date.now()}`,
     name: `五费${state.cards.length + 1}`,
     alias: "",
+    season: "",
     active: true,
     category: "normal",
     tags: [],
