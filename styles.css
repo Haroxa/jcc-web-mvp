@@ -318,7 +318,8 @@ label select {
 
 .summary-title::before {
   content: "▸";
-  font-size: 12px;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .match-config[open] .summary-title::before {

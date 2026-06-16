@@ -47,6 +47,7 @@ const initialState = {
   currentMatch: {
     id: "match-current",
     name: "当前对局",
+    season: "",
     startedAt: Date.now(),
   },
   matchHistory: [],
@@ -192,6 +193,7 @@ function normalizeMatchHistory(records, players = defaultPlayerObjects, cards = 
     name: String(record.name || "").trim() || `历史对局 ${index + 1}`,
     createdAt: Number.isFinite(record.createdAt) ? record.createdAt : Date.now(),
     startedAt: Number.isFinite(record.startedAt) ? record.startedAt : null,
+    season: String(record.season || "").trim(),
     note: record.note || "",
     playerIds: Array.isArray(record.playerIds) ? record.playerIds.filter((playerId) => playerIds.has(playerId)).slice(0, 8) : [],
     cardIds: Array.isArray(record.cardIds) ? record.cardIds.filter((cardId) => cardIds.has(cardId)) : [],
@@ -203,6 +205,7 @@ function normalizeCurrentMatch(match) {
   return {
     id: match?.id || uid(),
     name: String(match?.name || "").trim() || "当前对局",
+    season: String(match?.season || "").trim(),
     startedAt: Number.isFinite(match?.startedAt) ? match.startedAt : Date.now(),
   };
 }
@@ -660,7 +663,8 @@ function cardLibraryRow(card, index) {
 }
 
 function renderMatchConfig() {
-  document.querySelector("#matchConfigSummary").textContent = `${activePlayers().length} 名玩家 · ${activeCards().length} 张五费`;
+  const seasonText = state.currentMatch.season || "未指定赛季";
+  document.querySelector("#matchConfigSummary").textContent = `${activePlayers().length} 名玩家 · ${seasonText} · ${activeCards().length} 张五费`;
   renderActiveMatchPlayers();
   renderActiveMatchCards();
   renderMatchPlayerCandidates();
@@ -802,6 +806,7 @@ function startNewMatch() {
   state.currentMatch = {
     id: uid(),
     name,
+    season: state.currentMatch.season || "",
     startedAt: Date.now(),
   };
   resetCurrentLocks();
@@ -819,6 +824,7 @@ function currentMatchSnapshot(name) {
     name: name || state.currentMatch.name || `对局 ${formatTime(Date.now())}`,
     createdAt: Date.now(),
     startedAt: state.currentMatch.startedAt,
+    season: state.currentMatch.season || "",
     note: "",
     playerIds,
     cardIds,
@@ -852,7 +858,7 @@ function matchHistoryRowHtml(record) {
     <div class="match-history-row">
       <div>
         <strong>${escapeHtml(record.name)}</strong>
-        <small>${formatTime(record.createdAt)} · ${record.playerIds.length} 名玩家 · ${record.cardIds.length} 张五费</small>
+        <small>${formatTime(record.createdAt)} · ${record.playerIds.length} 名玩家 · ${record.season || "未指定赛季"} · ${record.cardIds.length} 张五费</small>
       </div>
       <div class="history-row-actions">
         <button data-restore-match="${escapeHtml(record.id)}" type="button">恢复</button>
@@ -873,6 +879,7 @@ function restoreMatchSnapshot(recordId) {
   state.currentMatch = {
     id: record.id,
     name: record.name,
+    season: record.season || "",
     startedAt: record.startedAt || record.createdAt,
   };
   state.locks = record.locks.map((lock) => ({
@@ -906,6 +913,7 @@ function quickConfigureCardsByTag() {
     .forEach((card) => {
       card.active = true;
     });
+  state.currentMatch.season = season;
   saveLibrary(readPlayersFromInputs(), nextCards);
 }
 
