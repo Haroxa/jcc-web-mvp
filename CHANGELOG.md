@@ -92,6 +92,32 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-18 23:31 修正 Cloudflare Pages 构建配置
+
+#### 摘要
+
+- 在 `wrangler.toml` 中新增 `pages_build_output_dir = "dist"`。
+- 在 `package.json` 中新增 `pages:deploy` 脚本。
+- 在 `README.md` 中补充 Cloudflare Pages 构建设置。
+- 删除本地重复目录 `JCC-Web-New`。
+- 尝试通过 Wrangler 手动部署 `dist`，但当前环境缺少 `CLOUDFLARE_API_TOKEN`，无法非交互部署。
+
+#### 说明
+
+旧项目之前是静态页面，Cloudflare Pages 可以直接发布根目录。新项目是 Vite 应用，根目录的 `index.html` 会引用 `/src/main.tsx`，线上不会自动执行浏览器端 TSX 编译，所以如果 Pages 仍按旧设置发布根目录，会出现空白页。正确方式是执行 `npm run build` 并发布 `dist`。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run build
+npx wrangler pages deploy dist --project-name jcc-web-mvp --branch main
+git status --short --branch
+git diff --check
+git add .
+git commit -m "修正 Cloudflare Pages 构建配置"
+git push origin main
+```
+
 ### 2026-06-18 18:39 将旧仓库主分支切换为新项目
 
 #### 摘要

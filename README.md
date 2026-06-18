@@ -40,6 +40,25 @@ npm run typecheck
 npm run build
 ```
 
+## Cloudflare Pages
+
+当前项目是 Vite 应用，Cloudflare Pages 需要使用构建产物目录。
+
+Pages 构建设置：
+
+```text
+Build command: npm run build
+Build output directory: dist
+Root directory: /
+```
+
+如果使用 Wrangler 手动部署：
+
+```bash
+npm run build
+npm run pages:deploy
+```
+
 ## 文档
 
 项目规划文档在 `docs/` 下。

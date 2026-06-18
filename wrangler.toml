@@ -1,6 +1,7 @@
 name = "jcc-web-new"
 main = "worker/index.ts"
 compatibility_date = "2026-06-18"
+pages_build_output_dir = "dist"
 
 [[d1_databases]]
 binding = "DB"
@@ -10,4 +11,3 @@ database_id = "replace-with-cloudflare-d1-id"
 [[r2_buckets]]
 binding = "SCREENSHOTS"
 bucket_name = "jcc-web-new-screenshots"
-
