@@ -92,6 +92,28 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-18 23:43 补充 Pages 静态资源规则
+
+#### 摘要
+
+- 新增 `public/_headers`，明确 Cloudflare Pages 中 JS/CSS 静态资源响应头。
+- 新增 `public/_redirects`，为后续 React 页面路由提供刷新回退。
+- 记录 Cloudflare Pages 空白页和 module script MIME 报错的线上验证结果。
+
+#### 说明
+
+线上首页当前已经引用 Vite 构建后的 `/assets/index-*.js` 和 `/assets/index-*.css`，不再引用 `/src/main.tsx`。线上 JS 资源响应头已验证为 `Content-Type: application/javascript`，CSS 为 `text/css; charset=utf-8`。若浏览器仍显示旧的 `application/octet-stream` 报错，优先按旧缓存或旧部署页面处理。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run build
+git diff --check
+git add .
+git commit -m "补充 Cloudflare Pages 静态资源规则"
+git push origin main
+```
+
 ### 2026-06-18 23:41 拆分 Pages 和 Worker 配置
 
 #### 摘要
