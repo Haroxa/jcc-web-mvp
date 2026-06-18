@@ -1,0 +1,12 @@
+name = "jcc-web-new-api"
+main = "worker/index.ts"
+compatibility_date = "2026-06-18"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "jcc_web_new"
+database_id = "replace-with-cloudflare-d1-id"
+
+[[r2_buckets]]
+binding = "SCREENSHOTS"
+bucket_name = "jcc-web-new-screenshots"

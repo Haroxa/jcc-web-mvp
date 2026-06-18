@@ -59,6 +59,11 @@ npm run build
 npm run pages:deploy
 ```
 
+说明：
+
+- `wrangler.toml` 仅用于 Pages 部署。
+- `wrangler.worker.toml` 预留给后续独立 Worker API。
+
 ## 文档
 
 项目规划文档在 `docs/` 下。

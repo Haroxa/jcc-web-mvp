@@ -92,6 +92,30 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-18 23:41 拆分 Pages 和 Worker 配置
+
+#### 摘要
+
+- 将 `wrangler.toml` 简化为 Cloudflare Pages 专用配置。
+- 新增 `wrangler.worker.toml`，预留后续独立 Worker API。
+- 更新 `worker:dev` 和 `worker:deploy` 脚本，显式使用 Worker 配置文件。
+- 更新 README，说明 Pages 和 Worker 配置分工。
+
+#### 说明
+
+线上空白页的直接原因是生产环境仍加载仓库根目录源码入口 `/src/main.tsx`，而不是 Vite 构建后的 `dist/assets/*.js`。上一版 Cloudflare 部署 `a8e2e39` 失败，生产仍停留在旧部署。`wrangler.toml` 中混放 Worker 的 `main`、D1/R2 占位配置，可能干扰 Pages 构建配置识别。本次拆分配置，确保 Pages 只关心 `dist` 输出目录。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "拆分 Cloudflare Pages 和 Worker 配置"
+git push origin main
+```
+
 ### 2026-06-18 23:31 修正 Cloudflare Pages 构建配置
 
 #### 摘要
