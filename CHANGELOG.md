@@ -4,25 +4,40 @@
 
 ## 当前文件说明
 
-- `index.html`：网页结构和页面入口。
-- `styles.css`：页面样式。
-- `app.js`：截图、锁牌、存票、本地保存、导入导出逻辑。
-- `README.md`：项目说明和使用方式。
+- `src/`：React 前端源码，当前是朴素后台首页骨架。
+- `worker/`：Cloudflare Worker API 入口。
+- `drizzle/schema.ts`：Drizzle 数据库 schema。
+- `migrations/0000_initial.sql`：SQLite / D1 首版数据库迁移草案。
+- `docs/新项目需求梳理.md`：新项目目标、角色、MVP、功能和边界。
+- `docs/02-数据模型设计.md`：业务实体和关系。
+- `docs/03-页面流程草图.md`：主播端、管理端、游客端页面流程。
+- `docs/04-MVP版本切分.md`：MVP 必须做、可以做、暂不做和验收标准。
+- `docs/05-技术方案评估.md`：Cloudflare、本地和 Docker 方案评估。
+- `docs/06-数据库草案.md`：表结构、索引、关键查询和数据完整性建议。
+- `docs/07-项目创建方案.md`：技术栈、目录结构、模块边界和首批任务。
+- `docs/项目状态.md`：当前模块状态、已验证项和未验证项。
+- `docs/项目功能执行计划清单.md`：P0/P1/P2/P3 功能执行计划。
+- `docs/问题汇总与解决.md`：依赖、代理、构建、部署等问题记录。
+- `docs/风险清单.md`：票务、公开、截图、部署等风险。
+- `docs/决策记录.md`：关键技术和产品决策。
 - `AGENTS.md`：Codex 在本项目中的工作规则。
-- `REVIEW.md`：前期执行复盘。
+- `README.md`：项目说明和启动方式。
 - `CHANGELOG.md`：当前文件说明、常用 Git 命令和变更记录。
-- `data/玩家.txt`：候选玩家原始文本资料。
-- `data/五费卡.txt`：五费卡原始文本资料。
-- `docs/功能设计安排.md`：功能路线、优先级、进度和暂缓项。
-- `docs/项目状态.md`：当前功能状态、未验证项和维护原则。
-- `docs/风险清单.md`：当前已知风险和发布前检查项。
 
 ## 常用 Git 命令
+
+### 初始化 Git 仓库
+
+```powershell
+git init
+```
+
+用途：让当前项目开始使用 Git 管理版本。
 
 ### 查看当前文件状态
 
 ```powershell
-git status
+git status --short --branch
 ```
 
 用途：查看哪些文件新增、修改或还没有提交。
@@ -77,592 +92,190 @@ git show --stat
 
 ## 变更记录
 
-### 2026-06-16 16:02 优化本场配置默认状态和赛季摘要
+### 2026-06-18 18:39 将旧仓库主分支切换为新项目
 
 #### 摘要
 
-- 本场配置默认展开，便于开局时直接配置玩家和五费。
-- 本场配置展开箭头尺寸调大，和其它折叠箭头视觉更接近。
-- 当前对局新增赛季字段。
-- 点击“按赛季配置”后，会记录当前配置赛季。
-- 本场配置摘要显示“玩家数 · 当前赛季 · 五费数”。
-- 历史对局快照会保存和恢复当前赛季。
+- 将旧项目当前 `main` 保存为 `old-mvp-main` 分支并推送到远程。
+- 在旧仓库 `main` 中替换为新项目骨架和新项目文档。
+- 删除旧静态 MVP 的源码文件、旧数据文件和旧文档目录。
+- 保留旧项目历史，后续可通过 `old-mvp-main` 查看旧版本。
+- 验证新项目依赖安装、类型检查和构建。
 
 #### 说明
 
-这次继续优化对局配置流程，让当前局的赛季状态更明确。选择赛季但未点击“按赛季配置”时不会改写当前赛季，避免误操作。
+这次是主分支用途切换：`main` 从旧静态 MVP 切换为新项目，旧项目不丢失，已保存在远程分支 `old-mvp-main`。后续默认在 `main` 上继续开发新项目。
 
 #### 本次变更的 Git 命令
 
 ```powershell
 git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js index.html styles.css CHANGELOG.md docs/项目状态.md
-git commit -m "优化本场配置默认状态和赛季摘要"
+git add data/玩家.txt docs/重构沉淀
+git commit -m "保存旧项目当前沉淀资料"
+git branch old-mvp-main
+git push origin old-mvp-main
+npm install --no-audit --no-fund
+npm run typecheck
+npm run build
+git add .
+git commit -m "重建主分支为新项目骨架"
+git push origin main
 git log --oneline -5
 ```
 
-### 2026-06-16 15:44 调整本场配置层级
+### 2026-06-18 18:22 初始化 Git 并补充提交规则
 
 #### 摘要
 
-- 将“本场配置”移动到“当前对局”下面，更符合开始一局比赛前先确认配置的流程。
-- 本场配置标题行新增显式展开箭头，避免用户看不出可展开。
-- 将赛季选择从“添加五费”面板提升到本场配置标题行。
-- 将“按赛季配置”按钮提升到本场配置标题行。
-- 添加五费面板保留搜索、分类、标签和添加筛选，减少面板内控件拥挤。
-- 拦截标题行赛季控件点击，避免选择赛季时误触折叠。
+- 在 `AGENTS.md` 中新增 Git 提交规则。
+- 明确每完成一组明确任务后应提交一次版本点。
+- 明确提交前需要检查状态、运行必要验证，并避免提交依赖、构建产物、密钥和临时文件。
+- 准备执行新项目首次提交。
+- 修正 TypeScript 构建生成的 `drizzle/*.js` 和 `worker/*.js` 不应进入 Git 的问题。
 
 #### 说明
 
-这次调整的是信息层级和使用流程，不改变五费配置规则。目标是让当前对局、本场配置、锁牌记录形成更自然的从上到下操作顺序。
+新项目后续会频繁修改数据库、业务规则和页面。将提交规则写入协作规则，可以避免只改不提交导致后续难以回看，也能避免过度零碎提交影响历史可读性。
 
 #### 本次变更的 Git 命令
 
 ```powershell
 git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js index.html styles.css CHANGELOG.md docs/项目状态.md
-git commit -m "调整本场配置层级"
+npm run typecheck
+npm run build
+git add .
+git commit -m "初始化新项目骨架和项目文档"
+git rm --cached drizzle/schema.js worker/index.js
+git commit --amend --no-edit
 git log --oneline -5
 ```
 
-### 2026-06-16 15:31 修复添加五费展开布局
+### 2026-06-18 18:18 调整项目文档和 Git 管理准备
 
 #### 摘要
 
-- 本场配置玩家列和五费列增加稳定布局，避免添加五费展开后把玩家区域挤窄。
-- 添加五费工具栏从固定网格改为可换行布局。
-- 搜索、分类、赛季、标签和操作按钮可根据宽度自动换行。
-- 候选五费列表限制最大高度并在内部滚动，避免展开后过度撑开页面。
-- 移动端下添加工具栏改为单列显示。
+- 将 `CHANGELOG.md` 调整为旧项目风格，加入当前文件说明、常用 Git 命令和按时分记录的变更记录。
+- 将项目状态类文档的时间粒度调整到分钟。
+- 评估并确认新项目需要使用 Git 管理版本，并初始化 Git 仓库。
+- 更新 `.gitignore`，补充构建缓存和 TypeScript 生成文件忽略项。
+- 验证 `npm run typecheck` 通过。
+- 验证 `npm run build` 通过。
 
 #### 说明
 
-这次只修布局和样式，不改变业务逻辑。重点是解决添加五费展开时横向溢出和挤压其它模块的问题。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add index.html styles.css CHANGELOG.md docs/项目状态.md
-git commit -m "修复添加五费展开布局"
-git log --oneline -5
-```
-
-### 2026-06-16 14:49 拆分五费赛季字段
-
-#### 摘要
-
-- 五费资料新增 `season` 赛季字段。
-- 旧数据兼容：如果旧五费没有 `season`，会把原 `tags` 的第一个标签迁移为赛季，剩余标签继续保留。
-- 基础资料五费表新增“赛季”列。
-- 五费批量解析升级为 `名称|外号 分类 赛季 标签`。
-- 本场五费添加面板拆分为“赛季筛选”和“标签筛选”。
-- “按标签配置”升级为“按赛季配置”。
-- README、项目状态和功能设计安排文档同步更新。
-
-#### 说明
-
-这次完成基础资料升级的关键一步：赛季不再和普通标签混用。后续移动端优化和历史对局详情可以基于更稳定的五费资料结构继续推进。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js index.html styles.css README.md CHANGELOG.md docs/项目状态.md docs/功能设计安排.md
-git commit -m "拆分五费赛季字段"
-git log --oneline -5
-```
-
-### 2026-06-11 13:11 新增功能设计安排文档
-
-#### 摘要
-
-- 新增 `docs/功能设计安排.md`。
-- 整理当前产品目标、阶段判断和功能路线。
-- 按 P0、P1、P2、P3 区分已实现、待做和暂缓功能。
-- 记录基础资料升级、历史对局增强、移动端优化、数据备份提醒等后续方向。
-- README 和项目状态文档新增功能安排文档入口。
-
-#### 说明
-
-这次只补项目文档，不修改业务代码。目的是把对话中逐步形成的功能想法沉淀到项目内，方便后续按优先级迭代。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-git add README.md CHANGELOG.md docs/项目状态.md docs/功能设计安排.md
-git commit -m "新增功能设计安排文档"
-git log --oneline -5
-```
-
-### 2026-06-11 12:04 增加当前对局流程
-
-#### 摘要
-
-- 锁牌管理新增“当前对局”区域。
-- 支持编辑当前对局名称，并显示开始时间。
-- 新增“开始新对局”按钮，会清空当前锁牌和淘汰状态，但保留基础资料、截图、存票和历史对局。
-- 保存历史对局时，如果未单独填写名称，会默认使用当前对局名称。
-- 恢复历史对局时，会同步恢复当前对局名称和开始时间。
-- 导入导出 JSON 会包含当前对局信息。
-
-#### 说明
-
-这是“按一局比赛使用”的最小流程版本，先把当前局名称、开始新局、保存历史串起来。暂时不引入完整向导或强制步骤。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js index.html styles.css README.md CHANGELOG.md docs/项目状态.md
-git commit -m "增加当前对局流程"
-git log --oneline -5
-```
-
-### 2026-06-11 11:50 修复淘汰玩家展示排序
-
-#### 摘要
-
-- 淘汰玩家在锁牌表中改为按名次排序展示。
-- 存活玩家仍然优先显示，并按本场玩家顺序排列。
-- 淘汰区现在按 1 名、2 名、3 名往后展示，避免排名数值正确但视觉顺序混乱。
-
-#### 说明
-
-上一版修复了排名计算，这次补齐表格展示排序，使计算结果和用户阅读顺序一致。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js CHANGELOG.md docs/项目状态.md
-git commit -m "修复淘汰玩家展示排序"
-git log --oneline -5
-```
-
-### 2026-06-11 11:42 修复淘汰排名计算
-
-#### 摘要
-
-- 修复淘汰排名可能按错误方向或错误对象计算的问题。
-- 排名改为按 `playerId` 查找淘汰顺序，不再依赖表格排序后的对象引用。
-- 淘汰时间相同时，使用本场玩家顺序作为稳定兜底。
-
-#### 说明
-
-正确规则是：最早淘汰为最后一名，最后淘汰为第一名。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js CHANGELOG.md docs/项目状态.md
-git commit -m "修复淘汰排名计算"
-git log --oneline -5
-```
-
-### 2026-06-11 11:28 增加对局历史快照
-
-#### 摘要
-
-- 锁牌管理新增“对局历史”区域。
-- 支持输入名称并保存当前对局快照。
-- 对局快照会记录本场玩家、本场五费和当前锁牌状态。
-- 历史对局支持恢复，恢复时会替换当前本场配置和锁牌状态。
-- 历史对局支持删除。
-- 导入导出 JSON 会包含历史对局快照。
-
-#### 说明
-
-这是历史对局的最小版本，暂时不把截图图片和存票流水归入单局历史。这样可以先验证“保存和恢复一局锁牌配置”是否有价值，再决定后续是否扩展为完整对局档案。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js index.html styles.css README.md CHANGELOG.md docs/项目状态.md
-git commit -m "增加对局历史快照"
-git log --oneline -5
-```
-
-### 2026-06-11 11:11 压缩本场五费配置样式
-
-#### 摘要
-
-- 本场五费分组外框、标题、间距和标签高度进一步压缩。
-- 正常五费和解锁五费默认收起，减少进入锁牌管理时的空白区域。
-- 可选五费默认展开，方便确认“已选 X / 2”。
-
-#### 说明
-
-这次只做视觉密度调整，不改变数据结构和配置规则。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js styles.css CHANGELOG.md docs/项目状态.md
-git commit -m "压缩本场五费配置样式"
-git log --oneline -5
-```
-
-### 2026-06-11 10:59 优化八人配置和赛季标签选卡
-
-#### 摘要
-
-- 本场玩家标签不再显示编号，只显示玩家名称和移除按钮。
-- 候选玩家编号改为当前筛选结果的顺序编号，不再使用基础资料中的实际编号。
-- 本场玩家固定展示 8 个槽位，缺少玩家时显示灰色虚线占位。
-- 锁牌表固定补足 8 行，缺少玩家行置灰且不可操作。
-- 本场五费标签样式收紧，减少配置区高度占用。
-- 五费标签筛选文案改为“赛季/标签”。
-- 新增“按标签配置”：选择一个赛季/标签后，自动启用该标签下的正常五费和解锁五费，并启用前 2 张可选五费。
-- 可选五费分组标题显示“已选 X / 2”，便于控制本局可选五费数量。
-
-#### 说明
-
-这次仍然沿用现有 `tags` 字段承载赛季和机制信息，没有拆分新的数据结构。后续如果真实资料里赛季标签和机制标签混用较多，再考虑拆成明确的赛季字段和机制字段。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js index.html styles.css README.md CHANGELOG.md docs/项目状态.md
-git commit -m "优化八人配置和赛季标签选卡"
-git log --oneline -5
-```
-
-### 2026-06-11 10:44 优化本场配置添加体验
-
-#### 摘要
-
-- 已锁五费和可用五费统一按基础资料中的五费顺序展示。
-- 本场配置默认只显示当前参与玩家和当前启用五费，不再让未参与资料占用主区域。
-- 本场玩家改为“当前清单 + 添加玩家”模式，支持搜索候选玩家并添加。
-- 本场五费改为按分类分组展示，每组可以折叠或展开。
-- 本场五费支持移除、搜索候选五费、按分类筛选、按标签筛选。
-- 添加五费支持一键添加当前筛选结果，方便批量添加正常五费或某个标签下的五费。
-
-#### 说明
-
-这次没有引入真正弹窗，而是使用页面内展开面板。这样实现更轻、移动端更稳，也保留后续升级“创建对局流程”的空间。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js index.html styles.css README.md CHANGELOG.md docs/项目状态.md
-git commit -m "优化本场配置添加体验"
-git log --oneline -5
-```
-
-### 2026-06-11 10:32 优化分页和本场配置样式
-
-#### 摘要
-
-- 基础资料分页从“当前显示范围 / 总条数”改为“第 X / Y 页 · 共 N 条”。
-- 每页数量选项调整为 5、10、15、20、30，默认每页 10 条。
-- 玩家资料和五费资料列表删除“本场”状态列，避免和锁牌管理页的本场配置入口重复。
-- 玩家资料和五费资料列表改为固定高度，减少翻页或筛选时页面高度跳动。
-- 锁牌管理的本场配置区新增已选数量摘要。
-- 本场配置区改为紧凑网格选择，并修复复选框被全局输入框样式放大的问题。
-
-#### 说明
-
-这次继续保持轻量流程：不强制进入锁牌管理前先完成配置，而是在锁牌管理页提供清晰的本场配置入口。这样当前使用更顺手，后续如果要做“创建对局”或“历史对局”，再升级成正式步骤页。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js index.html styles.css README.md CHANGELOG.md docs/项目状态.md
-git commit -m "优化分页和本场配置样式"
-git log --oneline -5
-```
-
-### 2026-06-11 10:14 整理内部关联和本场配置入口
-
-#### 摘要
-
-- 锁牌记录从按名称关联升级为按 `playerId` / `cardId` 关联，后续修改昵称、游戏名或五费外号时不容易影响历史记录。
-- 存票记录新增 `playerId` 关联，并继续兼容旧的玩家名称记录。
-- 锁牌管理新增“本场玩家与五费配置”区域，本场玩家和本场五费选择集中在锁牌页执行。
-- 基础资料列表保留当前状态展示，不再承担本场勾选入口。
-- 玩家资料和五费资料列表新增顺序编号、搜索筛选和轻量分页。
-- 锁牌、存票和导入导出继续兼容旧数据结构。
-
-#### 说明
-
-这次属于内部结构整理加入口调整。核心目标是让“长期资料库”和“本场比赛配置”分开：基础资料负责维护和查看资料，锁牌管理负责当前这一局到底有哪些玩家、哪些五费参与。分页先做轻量版本，满足资料变多后的基本可用性，暂不引入复杂表格组件。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-node --check .\app.js
-git diff --check
-git add app.js index.html styles.css README.md CHANGELOG.md docs/项目状态.md
-git commit -m "整理内部关联和本场配置入口"
-git log --oneline -5
-```
-
-### 2026-06-11 09:49 增加多名称和外号展示
-
-#### 摘要
-
-- 玩家资料从单一名称扩展为昵称、抖音名、微信名和游戏名。
-- 旧数据中的 `name` 会自动兼容为昵称。
-- 五费卡资料新增外号字段。
-- 基础资料表格新增玩家多名称列和五费外号列。
-- 玩家批量解析支持 `昵称 | 抖音名 | 微信名 | 游戏名`。
-- 五费批量解析支持 `正式名|外号 分类 标签`。
-- 锁牌管理新增玩家展示模式：昵称、游戏名、抖音名、微信名。
-- 锁牌管理新增五费展示模式：正式名、外号优先。
-- 展示字段为空时会自动回退：玩家回退到昵称，五费回退到正式名。
-
-#### 说明
-
-这次只做资料字段扩展和展示模式切换，不做底层 `playerId` / `cardId` 大迁移。现有锁牌、存票和导入导出继续兼容旧数据，后续如果要做云端或长期历史对局，再考虑把内部关联从名称迁移为稳定 id。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-git add app.js index.html styles.css README.md CHANGELOG.md docs/项目状态.md
-git commit -m "增加多名称和外号展示"
-git log --oneline -5
-```
-
-### 2026-06-10 18:31 增强淘汰锁牌记录和按钮样式
-
-#### 摘要
-
-- 淘汰玩家不再清空锁牌记录。
-- 淘汰玩家的锁牌记录可以继续修改，但不占用存活玩家的五费选择。
-- 存活玩家的五费选择只受其他存活玩家锁牌影响。
-- 锁牌管理新增排名列，根据淘汰顺序自动计算名次。
-- 恢复存活时会清空淘汰时间，重新淘汰时重新计算名次。
-- 强化顶部操作按钮字体、高度、行高和字重，解决导入/导出按钮字体不一致。
-
-#### 说明
-
-这次调整锁牌管理的核心规则：淘汰玩家的锁牌视为历史记录，保留用于复盘；存活玩家的锁牌才视为当前占用。这样淘汰记录修改和存活玩家选择互不影响，更符合水友赛追五费记录需求。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-git add app.js styles.css README.md CHANGELOG.md docs/项目状态.md
-git commit -m "增强淘汰锁牌记录和按钮样式"
-git log --oneline -5
-```
-
-### 2026-06-10 17:55 优化资料表格和锁牌筛选体验
-
-#### 摘要
-
-- 统一顶部导入、导出、清空数据按钮样式。
-- 修复基础资料表格横向溢出，改为表格内部横向滚动。
-- 优化基础资料在窄屏下的展示，避免整页横向撑开。
-- 锁牌管理的已锁和可用五费改为彩色标签展示。
-- 五费名称文本只显示名称，分类通过颜色和悬停说明表达。
-- 锁牌管理新增五费分类筛选，添加锁牌时可按全部、正常五费、解锁五费、可选五费过滤。
-
-#### 说明
-
-这次主要处理页面可用性和多端适配问题，没有改变数据保存方式，也没有引入新依赖。五费分类不再写进名称文本里，避免列表和标签过长；分类含义由颜色和 `title` 说明承载。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-git add index.html styles.css app.js README.md CHANGELOG.md docs/项目状态.md
-git commit -m "优化资料表格和锁牌筛选体验"
-git log --oneline -5
-```
-
-### 2026-06-10 12:39 增强本场资料配置
-
-#### 摘要
-
-- 基础资料中的玩家改为候选库，支持勾选本场参与玩家。
-- 五费卡支持勾选本场可用。
-- 五费分类新增 `解锁五费`，并按分类显示不同颜色。
-- 五费批量解析支持 `正常五费`、`解锁五费`、`可选五费`。
-- 基础资料表格改为固定高度，内容过多时内部滚动。
-- 锁牌和存票只读取本场启用的玩家和五费。
-- 将 `data/玩家.txt` 和 `data/五费卡.txt` 纳入项目资料。
-
-#### 说明
-
-这次围绕真实水友赛配置做增强：候选玩家可以多于 8 人，但本场参与限制为 1 到 8 人；五费资料可以很多，但锁牌只显示本场可用五费。排名和淘汰自动名次暂未实现，留到下一轮锁牌管理增强。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-git add index.html styles.css app.js README.md CHANGELOG.md docs/项目状态.md docs/风险清单.md data/玩家.txt data/五费卡.txt
-git commit -m "增强本场资料配置"
-git log --oneline -5
-```
-
-### 2026-06-10 12:06 拆分基础资料管理
-
-#### 摘要
-
-- 新增 `基础资料` 页签，集中维护玩家名单和五费卡资料。
-- 玩家名单支持批量文本解析，当前版本保留 8 个上场玩家。
-- 五费卡资料支持名称、分类、标签和备注。
-- 五费卡批量解析支持“正常五费”和“可选五费”，其他词会作为标签。
-- 锁牌管理和存票管理改为复用基础资料。
-- 更新 `README.md`、`docs/项目状态.md` 和 `docs/风险清单.md`。
-
-#### 说明
-
-这次把上一版放在锁牌管理里的玩家和五费设置拆成独立资料页，方便后续复用。数据结构升级为 `players` 和带分类/标签的 `cards`，并兼容旧版本字符串五费列表和旧锁牌数据。当前仍然不引入后端、登录、云同步或赛季模板库。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-git add index.html styles.css app.js README.md CHANGELOG.md docs/项目状态.md docs/风险清单.md
-git commit -m "拆分基础资料管理"
-git log --oneline -4
-```
-
-### 2026-06-10 11:35 增加名单和五费名称设置
-
-#### 摘要
-
-- 记录 Cloudflare Pages 部署地址：`https://jcc-web-mvp.pages.dev/`。
-- 在锁牌管理中新增玩家名单和五费名称设置。
-- 五费名称会保存到本地数据，并参与导入导出。
-- 玩家名称会同步影响锁牌管理和存票管理。
-- 更新 `README.md`、`docs/项目状态.md` 和 `docs/风险清单.md`。
-
-#### 说明
-
-这次继续保持纯静态、本地保存，不引入登录、后端、数据库或云同步。旧数据会自动兼容：没有五费名称配置的旧浏览器数据会继续使用默认 `五费1` 到 `五费8`。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-git add index.html styles.css app.js README.md CHANGELOG.md docs/项目状态.md docs/风险清单.md
-git commit -m "增加名单和五费名称设置"
-git log --oneline -3
-```
-
-### 2026-06-10 11:06 建立最小项目文档
-
-#### 摘要
-
-- 新增项目专属 `AGENTS.md`。
-- 完善 `README.md`，补充项目用途、启动方式、技术栈和目录结构。
-- 新增 `docs/项目状态.md`，记录当前功能状态和未验证项。
-- 新增 `docs/风险清单.md`，记录本地数据、截图存储、公开部署等风险。
-- 更新 `CHANGELOG.md` 的当前文件说明和本次变更记录。
-
-#### 说明
-
-这次参考 Codex Knowledge 经验库中的项目规则模板、项目启动模板、Git 操作说明、任务结束检查清单、前端开发检查清单、项目状态模板和风险清单模板。落地时只保留适合当前纯静态网页 MVP 的内容，没有引入后端、支付、权限、数据库等当前项目不存在的复杂规则。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff
-git add AGENTS.md README.md CHANGELOG.md docs/项目状态.md docs/风险清单.md
-git commit -m "建立最小项目文档"
-git log --oneline -3
-```
-
-### 2026-06-10 10:58 调整变更记录结构
-
-#### 摘要
-
-- 调整 `CHANGELOG.md` 的内容顺序。
-- 将当前文件说明和常用 Git 命令放到变更记录前面。
-- 统一变更记录格式，时间精确到分钟。
-- 每次记录增加摘要、说明和本次变更的 Git 命令。
-
-#### 说明
-
-这次只调整文档结构，不修改网页功能。调整后，新手可以先看到项目文件分别做什么，再看到常用 Git 命令，最后查看每次变更历史。
-
-#### 本次变更的 Git 命令
-
-```powershell
-git status --short --branch
-git diff -- CHANGELOG.md
-git add CHANGELOG.md
-git commit -m "调整变更记录结构"
-git log --oneline -2
-```
-
-### 2026-06-10 10:49 初始化项目版本管理
-
-#### 摘要
-
-- 建立 `JCC-Web-MVP` 的 Git 版本管理。
-- 新增 `CHANGELOG.md`，记录项目变更摘要和常用 Git 命令。
-- 将当前 MVP 保存为第一个 Git 版本。
-
-#### 说明
-
-当前项目是一个纯静态网页，可直接打开 `index.html` 使用。当前包含截图管理、锁牌管理、存票管理三个主要工具。数据保存在当前浏览器本地，支持导入和导出 JSON 数据。当前不包含登录、后端、数据库、云同步和官方游戏素材。
+新项目已经从需求梳理进入工程骨架阶段，后续会持续修改数据库、业务规则和页面。使用 Git 能帮助追踪每次改动、回滚错误实现，也方便记录每次功能推进的验证命令。
 
 #### 本次变更的 Git 命令
 
 ```powershell
 git init
 git status --short --branch
+git diff
+npm run typecheck
+npm run build
+git status --short --branch
 git add .
-git commit -m "初始化项目版本管理"
-git log --oneline -1
+git commit -m "初始化新项目骨架和项目文档"
+git log --oneline -5
+```
+
+### 2026-06-18 17:27 新增项目治理文档
+
+#### 摘要
+
+- 新增 `AGENTS.md`，记录 Codex 协作规则、项目边界和常用命令。
+- 新增 `docs/项目状态.md`，记录当前模块状态、已验证项和未验证项。
+- 新增 `docs/项目功能执行计划清单.md`，按优先级整理后续执行计划。
+- 新增 `docs/问题汇总与解决.md`，记录 npm/pip 代理问题和后续问题模板。
+- 新增 `docs/风险清单.md`，记录票务、公开字段、锁牌、截图和部署风险。
+- 新增 `docs/决策记录.md`，沉淀技术栈、UI、公开、票务、截图和代理决策。
+
+#### 说明
+
+这次主要补齐长期迭代需要的项目治理文档。新项目不再是一次性静态 MVP，需要更明确的状态、风险、问题和决策记录。
+
+#### 本次变更的 Git 命令
+
+```powershell
+git status --short --branch
+git diff
+git add AGENTS.md CHANGELOG.md docs/项目状态.md docs/项目功能执行计划清单.md docs/问题汇总与解决.md docs/风险清单.md docs/决策记录.md
+git commit -m "新增项目治理文档"
+git log --oneline -5
+```
+
+### 2026-06-18 11:53 创建项目骨架和数据库迁移草案
+
+#### 摘要
+
+- 创建 TypeScript + React + Vite 项目骨架。
+- 创建朴素后台风格首页。
+- 创建 Drizzle schema。
+- 创建 SQLite / D1 首版迁移 SQL。
+- 创建 Cloudflare Worker API 入口。
+- 创建 Cloudflare D1 / R2 配置占位。
+- 更新 `docs/07-项目创建方案.md`，确认技术路线。
+
+#### 说明
+
+这次从规划文档进入工程骨架阶段。项目仍处于 MVP 基础建设期，优先保证本地可运行、Cloudflare 可适配、功能边界清楚。
+
+#### 本次变更的 Git 命令
+
+```powershell
+git status --short --branch
+npm install
+npm run typecheck
+npm run build
+git add .
+git commit -m "创建新项目工程骨架"
+git log --oneline -5
+```
+
+### 2026-06-18 11:29 新增数据库草案和项目创建方案
+
+#### 摘要
+
+- 新增 `docs/06-数据库草案.md`。
+- 新增 `docs/07-项目创建方案.md`。
+- 将数据模型落到表结构、索引、关键查询和完整性建议。
+- 确认项目创建建议：TypeScript + React + Drizzle + SQLite，预留 Cloudflare。
+
+#### 说明
+
+这次将产品设计进一步推进到工程准备层。数据库草案为后续 schema 和迁移提供依据，项目创建方案为后续初始化工程提供约束。
+
+#### 本次变更的 Git 命令
+
+```powershell
+git status --short --branch
+git diff
+git add docs/06-数据库草案.md docs/07-项目创建方案.md
+git commit -m "新增数据库草案和项目创建方案"
+git log --oneline -5
+```
+
+### 2026-06-18 11:16 新增数据模型、页面流程、MVP 和技术方案
+
+#### 摘要
+
+- 新增 `docs/02-数据模型设计.md`。
+- 新增 `docs/03-页面流程草图.md`。
+- 新增 `docs/04-MVP版本切分.md`。
+- 新增 `docs/05-技术方案评估.md`。
+- 梳理主播端、管理端、游客端页面流程。
+- 切分 MVP 必做、可做、暂不做和验收标准。
+
+#### 说明
+
+这次把已经确认的新项目需求推进为结构设计文档，为后续工程创建、数据库设计和功能排期打基础。
+
+#### 本次变更的 Git 命令
+
+```powershell
+git status --short --branch
+git diff
+git add docs/02-数据模型设计.md docs/03-页面流程草图.md docs/04-MVP版本切分.md docs/05-技术方案评估.md
+git commit -m "新增新项目结构设计文档"
+git log --oneline -5
 ```
