@@ -12,8 +12,8 @@
     "worker:deploy": "npx wrangler deploy --config wrangler.worker.toml",
     "pages:deploy": "npx wrangler pages deploy dist --project-name jcc-web-mvp --branch main",
     "db:generate": "drizzle-kit generate",
-    "db:migrate:local": "npx wrangler d1 migrations apply jcc_web_new --local",
-    "db:migrate:remote": "npx wrangler d1 migrations apply jcc_web_new --remote"
+    "db:migrate:local": "npx wrangler d1 migrations apply jcc_web_new --local --config wrangler.worker.toml",
+    "db:migrate:remote": "npx wrangler d1 migrations apply jcc_web_new --remote --config wrangler.worker.toml"
   },
   "dependencies": {
     "@cloudflare/workers-types": "^4.20250617.0",

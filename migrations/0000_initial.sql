@@ -26,6 +26,23 @@ CREATE TABLE `accounts` (
 
 CREATE UNIQUE INDEX `accounts_username_unique` ON `accounts` (`username`);
 
+CREATE TABLE `account_sessions` (
+  `id` text PRIMARY KEY NOT NULL,
+  `account_id` text NOT NULL,
+  `token_hash` text NOT NULL,
+  `status` text DEFAULT 'active' NOT NULL,
+  `user_agent` text,
+  `ip_address` text,
+  `created_at` text NOT NULL,
+  `expires_at` text NOT NULL,
+  `revoked_at` text,
+  FOREIGN KEY (`account_id`) REFERENCES `accounts`(`id`)
+);
+
+CREATE INDEX `account_sessions_account_idx` ON `account_sessions` (`account_id`);
+CREATE INDEX `account_sessions_token_hash_idx` ON `account_sessions` (`token_hash`);
+CREATE INDEX `account_sessions_status_idx` ON `account_sessions` (`status`);
+
 CREATE TABLE `fans` (
   `id` text PRIMARY KEY NOT NULL,
   `streamer_id` text NOT NULL,
@@ -311,4 +328,3 @@ CREATE INDEX `audit_logs_streamer_created_idx` ON `audit_logs` (`streamer_id`, `
 CREATE INDEX `audit_logs_actor_created_idx` ON `audit_logs` (`actor_account_id`, `created_at`);
 CREATE INDEX `audit_logs_target_idx` ON `audit_logs` (`target_type`, `target_id`);
 CREATE INDEX `audit_logs_action_idx` ON `audit_logs` (`action`);
-

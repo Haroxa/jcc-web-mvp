@@ -92,6 +92,36 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-19 09:31 实现账号登录基础
+
+#### 摘要
+
+- 新增 `account_sessions` 会话表，支持单账号单设备在线。
+- 新增 Worker 接口：管理员初始化、登录、登出、当前账号识别。
+- 前端接入初始化管理员和登录面板。
+- 前端加入静态预览模式，避免 Pages 尚未接入 Worker API 时线上页面不可用。
+- 修正 D1 本地迁移脚本，显式使用 `wrangler.worker.toml`。
+- 补充 README 本地联调说明。
+- 同步更新数据库草案、决策记录、项目状态、功能计划、问题汇总和风险清单。
+
+#### 说明
+
+本次完成 MVP 第一阶段的账号基础：首次无账号时可初始化管理员，登录后通过 HTTP-only cookie 保存会话；同账号新登录会撤销旧会话，后续可在此基础上扩展主播账号管理和页面级权限控制。生产环境部署 Worker 前需要配置 `ADMIN_SETUP_TOKEN`，避免公开环境被抢先初始化。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+npm run db:migrate:local
+npm run worker:dev
+npm run dev -- --host 127.0.0.1
+git diff --check
+git add .
+git commit -m "实现账号登录基础"
+git push origin main
+```
+
 ### 2026-06-18 23:58 补充项目文档维护规则
 
 #### 摘要

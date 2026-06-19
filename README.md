@@ -2,7 +2,7 @@
 
 金铲铲水友赛直播辅助工具新项目。
 
-当前阶段：项目骨架。目标是先保证本地可运行，并预留 Cloudflare Pages / Workers / D1 / R2 部署路线。
+当前阶段：项目骨架和账号登录基础。目标是先保证本地可运行，并预留 Cloudflare Pages / Workers / D1 / R2 部署路线。
 
 ## 技术选择
 
@@ -27,6 +27,20 @@ npm install
 ```bash
 npm run dev
 ```
+
+启动 Worker API：
+
+```bash
+npm run worker:dev
+```
+
+初始化本地 D1：
+
+```bash
+npm run db:migrate:local
+```
+
+本地联调时，前端运行在 `http://127.0.0.1:5173`，Worker API 运行在 `http://127.0.0.1:8787`，Vite 会把 `/api` 请求代理到 Worker。
 
 类型检查：
 

@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const streamers = sqliteTable("streamers", {
   id: text("id").primaryKey(),
@@ -28,6 +28,28 @@ export const accounts = sqliteTable(
   },
   (table) => ({
     usernameUnique: uniqueIndex("accounts_username_unique").on(table.username)
+  })
+);
+
+export const accountSessions = sqliteTable(
+  "account_sessions",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id),
+    tokenHash: text("token_hash").notNull(),
+    status: text("status").notNull().default("active"),
+    userAgent: text("user_agent"),
+    ipAddress: text("ip_address"),
+    createdAt: text("created_at").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    revokedAt: text("revoked_at")
+  },
+  (table) => ({
+    accountIdx: index("account_sessions_account_idx").on(table.accountId),
+    tokenHashIdx: index("account_sessions_token_hash_idx").on(table.tokenHash),
+    statusIdx: index("account_sessions_status_idx").on(table.status)
   })
 );
 
@@ -281,4 +303,3 @@ export const auditLogs = sqliteTable("audit_logs", {
   note: text("note"),
   createdAt: text("created_at").notNull()
 });
-
