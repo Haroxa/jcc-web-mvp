@@ -4,7 +4,7 @@ import { getCookie, setCookie } from "hono/cookie";
 
 type Bindings = {
   DB: D1Database;
-  SCREENSHOTS: R2Bucket;
+  SCREENSHOTS?: R2Bucket;
   ADMIN_SETUP_TOKEN?: string;
 };
 
@@ -195,12 +195,15 @@ async function getCurrentAccount(db: D1Database, token?: string) {
 }
 
 app.get("/api/health", (context) => {
+  const screenshotsConfigured = Boolean(context.env.SCREENSHOTS);
+
   return context.json({
     ok: true,
     service: "jcc-web-new",
     storage: {
       database: Boolean(context.env.DB),
-      screenshots: Boolean(context.env.SCREENSHOTS)
+      screenshots: screenshotsConfigured,
+      screenshotsStatus: screenshotsConfigured ? "ready" : "deferred"
     }
   });
 });

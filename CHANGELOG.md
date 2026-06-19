@@ -92,6 +92,31 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-19 10:37 暂缓 R2 截图云存储
+
+#### 摘要
+
+- 将 R2 截图云存储调整为暂缓能力。
+- 移除独立 Worker 配置中的强制 `SCREENSHOTS` R2 绑定。
+- 将 Worker `SCREENSHOTS` 类型改为可选，并在 health 接口返回 `screenshotsStatus`。
+- 将前端工作台“截图限制”调整为“截图存储：暂缓”。
+- 同步更新项目状态、功能计划、问题汇总、风险清单和决策记录。
+
+#### 说明
+
+R2 需要绑定银行卡，当前银行卡暂不支持。截图功能属于辅助能力，不影响账号、主播、粉丝、场次、定榜、存票和锁牌等核心流程。本次明确 R2 暂缓，避免它阻塞 MVP 主流程。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "暂缓 R2 截图云存储"
+git push origin main
+```
+
 ### 2026-06-19 10:05 接入远程 D1 数据库
 
 #### 摘要

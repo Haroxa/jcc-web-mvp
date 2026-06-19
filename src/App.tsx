@@ -40,7 +40,7 @@ const cards = [
   { title: "当前场次", value: "未开始", note: "创建下午场或晚上场后进入直播流程" },
   { title: "待结算", value: "0", note: "直播结束后确认存票入账和回退" },
   { title: "公开存票榜", value: "关闭", note: "游客只看到公开模块和公开字段" },
-  { title: "截图限制", value: "5MB", note: "超过限制提示压缩或重新上传" }
+  { title: "截图存储", value: "暂缓", note: "R2 需绑定银行卡，当前先不启用云端截图" }
 ];
 
 async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
