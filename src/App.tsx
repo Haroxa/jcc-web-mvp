@@ -390,6 +390,7 @@ function StreamerAccountManager() {
   const [note, setNote] = useState("");
   const [notice, setNotice] = useState("");
   const [generatedPassword, setGeneratedPassword] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const loadItems = useCallback(async () => {
@@ -406,6 +407,7 @@ function StreamerAccountManager() {
     setIsLoading(true);
     setNotice("");
     setGeneratedPassword("");
+    setResetPassword("");
 
     try {
       const result = await apiRequest<{
@@ -441,6 +443,7 @@ function StreamerAccountManager() {
   async function updateStatus(accountId: string, status: "active" | "disabled") {
     setIsLoading(true);
     setNotice("");
+    setResetPassword("");
 
     try {
       await apiRequest<{ ok: boolean }>(`/api/admin/accounts/${accountId}/status`, {
@@ -451,6 +454,30 @@ function StreamerAccountManager() {
       await loadItems();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "操作失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function resetAccountPassword(accountId: string, username: string) {
+    setIsLoading(true);
+    setNotice("");
+    setGeneratedPassword("");
+    setResetPassword("");
+
+    try {
+      const result = await apiRequest<{ password: string }>(
+        `/api/admin/accounts/${accountId}/reset-password`,
+        {
+          method: "POST",
+          body: "{}"
+        }
+      );
+      setNotice(`已重置 ${username} 的密码。`);
+      setResetPassword(result.password);
+      await loadItems();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "重置失败");
     } finally {
       setIsLoading(false);
     }
@@ -531,6 +558,12 @@ function StreamerAccountManager() {
             <strong>{generatedPassword}</strong>
           </div>
         ) : null}
+        {resetPassword ? (
+          <div className="secret-result">
+            <span>重置后的新密码</span>
+            <strong>{resetPassword}</strong>
+          </div>
+        ) : null}
       </form>
 
       <section className="panel list-panel">
@@ -555,16 +588,26 @@ function StreamerAccountManager() {
                 </div>
 
                 {item.account ? (
-                  <button
-                    className="secondary-button"
-                    disabled={isLoading}
-                    onClick={() =>
-                      updateStatus(item.account!.id, item.account!.status === "disabled" ? "active" : "disabled")
-                    }
-                    type="button"
-                  >
-                    {item.account.status === "disabled" ? "启用" : "停用"}
-                  </button>
+                  <div className="row-actions">
+                    <button
+                      className="secondary-button"
+                      disabled={isLoading}
+                      onClick={() => resetAccountPassword(item.account!.id, item.account!.username)}
+                      type="button"
+                    >
+                      重置密码
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={isLoading}
+                      onClick={() =>
+                        updateStatus(item.account!.id, item.account!.status === "disabled" ? "active" : "disabled")
+                      }
+                      type="button"
+                    >
+                      {item.account.status === "disabled" ? "启用" : "停用"}
+                    </button>
+                  </div>
                 ) : null}
               </article>
             ))}

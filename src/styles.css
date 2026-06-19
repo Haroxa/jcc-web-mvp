@@ -377,6 +377,13 @@ h1 {
   font-size: 13px;
 }
 
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .secondary-button {
   border: 1px solid #cbd5df;
   border-radius: 8px;

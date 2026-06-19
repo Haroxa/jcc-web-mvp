@@ -552,6 +552,53 @@ app.patch("/api/admin/accounts/:accountId/status", async (context) => {
   return context.json({ ok: true, status });
 });
 
+app.post("/api/admin/accounts/:accountId/reset-password", async (context) => {
+  const actor = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!actor) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+  if (actor.role !== "admin") {
+    return context.json(jsonError("只有管理员可以重置账号密码。", 403), 403);
+  }
+
+  const accountId = context.req.param("accountId");
+  const target = await context.env.DB.prepare("SELECT * FROM accounts WHERE id = ?")
+    .bind(accountId)
+    .first<AccountRow>();
+
+  if (!target) {
+    return context.json(jsonError("账号不存在。", 404), 404);
+  }
+  if (target.role === "admin") {
+    return context.json(jsonError("不能在这里重置管理员密码。"), 400);
+  }
+
+  const password = createPassword();
+  const timestamp = nowIso();
+
+  await context.env.DB.batch([
+    context.env.DB.prepare("UPDATE accounts SET password_hash = ?, updated_at = ? WHERE id = ?").bind(
+      await hashPassword(password),
+      timestamp,
+      accountId
+    ),
+    context.env.DB.prepare(
+      "UPDATE account_sessions SET status = 'revoked', revoked_at = ? WHERE account_id = ? AND status = 'active'"
+    ).bind(timestamp, accountId)
+  ]);
+
+  await writeAuditLog(
+    context.env.DB,
+    toPublicAccount(actor),
+    "reset_account_password",
+    "account",
+    accountId,
+    `重置账号密码：${target.username}`
+  );
+
+  return context.json({ password });
+});
+
 app.notFound((context) => context.json({ error: "Not found" }, 404));
 
 export default app;
