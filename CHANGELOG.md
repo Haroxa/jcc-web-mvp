@@ -92,6 +92,29 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-19 11:13 修复线上管理员初始化失败
+
+#### 摘要
+
+- 重新确认 Pages secret `ADMIN_SETUP_TOKEN` 写入方式。
+- 将密码哈希从 PBKDF2 实现调整为 Workers 环境稳定支持的盐化 SHA-256。
+- 记录线上初始化管理员 500 问题。
+
+#### 说明
+
+初始化口令错误来自 Cloudflare Pages secret 实际值和本地记录不一致，已重新写入。随后接口进入创建流程但返回 500，远程 D1 插入测试正常，判断问题在应用层密码哈希步骤。当前先采用 Workers 稳定支持的盐化 SHA-256，保证 MVP 登录链路跑通。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "修复线上管理员初始化失败"
+git push origin main
+```
+
 ### 2026-06-19 10:37 暂缓 R2 截图云存储
 
 #### 摘要

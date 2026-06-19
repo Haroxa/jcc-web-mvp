@@ -69,52 +69,16 @@ async function sha256(value: string) {
 }
 
 async function hashPassword(password: string, salt = crypto.randomUUID()) {
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"]
-  );
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      hash: "SHA-256",
-      salt: new TextEncoder().encode(salt),
-      iterations: 120000
-    },
-    keyMaterial,
-    256
-  );
-
-  return `pbkdf2_sha256$120000$${salt}$${toHex(bits)}`;
+  return `sha256_salted$${salt}$${await sha256(`${salt}:${password}`)}`;
 }
 
 async function verifyPassword(password: string, storedHash: string) {
-  const [algorithm, iterationsText, salt, expectedHash] = storedHash.split("$");
-  if (algorithm !== "pbkdf2_sha256" || !iterationsText || !salt || !expectedHash) {
+  const [algorithm, salt, expectedHash] = storedHash.split("$");
+  if (algorithm !== "sha256_salted" || !salt || !expectedHash) {
     return false;
   }
 
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"]
-  );
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      hash: "SHA-256",
-      salt: new TextEncoder().encode(salt),
-      iterations: Number(iterationsText)
-    },
-    keyMaterial,
-    256
-  );
-
-  const actual = fromHex(toHex(bits));
+  const actual = fromHex(await sha256(`${salt}:${password}`));
   const expected = fromHex(expectedHash);
   if (actual.length !== expected.length) {
     return false;
