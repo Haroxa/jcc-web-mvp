@@ -92,6 +92,31 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-19 09:58 接入 Pages Functions API
+
+#### 摘要
+
+- 新增 `functions/api/[[path]].ts`，让 Cloudflare Pages 同域名处理 `/api/*`。
+- 新增 `pages:dev` 脚本，用于本地验证 Pages Functions 形态。
+- 更新 README，补充 Cloudflare Pages 后台绑定说明。
+- 同步更新项目状态、功能计划、问题汇总、风险清单和决策记录。
+
+#### 说明
+
+线上 `/api/setup/status` 返回 HTML 的原因是 Pages 没有 Functions 入口，API 请求被静态站点回退到 `index.html`。本次接入 Pages Functions 后，Cloudflare Pages 可直接把 `/api/*` 转发到现有 Hono Worker。后续还需要在 Pages 后台绑定 `DB`、`SCREENSHOTS` 和 `ADMIN_SETUP_TOKEN`，并执行远程 D1 迁移。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+npm run pages:dev
+git diff --check
+git add .
+git commit -m "接入 Pages Functions API"
+git push origin main
+```
+
 ### 2026-06-19 09:31 实现账号登录基础
 
 #### 摘要

@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "types": ["node", "@cloudflare/workers-types"]
   },
-  "include": ["vite.config.ts", "drizzle.config.ts", "worker", "drizzle"]
+  "include": ["vite.config.ts", "drizzle.config.ts", "worker", "functions", "drizzle"]
 }

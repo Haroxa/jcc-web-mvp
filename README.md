@@ -42,6 +42,14 @@ npm run db:migrate:local
 
 本地联调时，前端运行在 `http://127.0.0.1:5173`，Worker API 运行在 `http://127.0.0.1:8787`，Vite 会把 `/api` 请求代理到 Worker。
 
+验证 Cloudflare Pages Functions 形态：
+
+```bash
+npm run pages:dev
+```
+
+该命令会构建前端，并用 Pages Functions 在同一个本地域名下提供 `/api/*`。
+
 类型检查：
 
 ```bash
@@ -77,6 +85,17 @@ npm run pages:deploy
 
 - `wrangler.toml` 仅用于 Pages 部署。
 - `wrangler.worker.toml` 预留给后续独立 Worker API。
+- `functions/api/[[path]].ts` 用于让 Cloudflare Pages 同域名接入 `/api/*`。
+
+Pages 后台需要在“设置 -> 绑定”中配置：
+
+```text
+D1 database binding: DB
+R2 bucket binding: SCREENSHOTS
+Environment variable: ADMIN_SETUP_TOKEN
+```
+
+配置完成后重新部署，`https://jcc-web-mvp.pages.dev/api/health` 应返回 JSON。
 
 ## 文档
 

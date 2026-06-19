@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "worker:dev": "npx wrangler dev --config wrangler.worker.toml",
     "worker:deploy": "npx wrangler deploy --config wrangler.worker.toml",
+    "pages:dev": "npm run build && npx wrangler pages dev dist --compatibility-date=2026-06-18 --d1 DB=jcc_web_new --r2 SCREENSHOTS=jcc-web-new-screenshots",
     "pages:deploy": "npx wrangler pages deploy dist --project-name jcc-web-mvp --branch main",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "npx wrangler d1 migrations apply jcc_web_new --local --config wrangler.worker.toml",
