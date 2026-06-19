@@ -1295,8 +1295,14 @@ function RankingManager({ account }: { account: Account | null }) {
           </label>
 
           <label>
-            名次
-            <input inputMode="numeric" onChange={(event) => patchEntryForm("rankOrder", event.target.value)} required value={entryForm.rankOrder} />
+            榜上顺序
+            <input
+              inputMode="numeric"
+              onChange={(event) => patchEntryForm("rankOrder", event.target.value)}
+              placeholder="总票相同时按这个顺序"
+              required
+              value={entryForm.rankOrder}
+            />
           </label>
           <label>
             礼物钻
@@ -1341,7 +1347,7 @@ function RankingManager({ account }: { account: Account | null }) {
                     #{entry.rankOrder} {entry.displayNameAtTime} · {seatDecisionLabel(entry.seatDecision)}
                   </strong>
                   <span>
-                    竞争票：{entry.competitionScore} = 礼物 {entry.giftDiamonds} + 取票 {entry.ticketUsed} + 调整 {entry.manualAdjustment}
+                    总票数：{entry.competitionScore} = 礼物 {entry.giftDiamonds} + 取票 {entry.ticketUsed} + 调整 {entry.manualAdjustment}
                   </span>
                   <span>粉丝类型：{fanTypeLabel(entry.fanTypeAtTime)}</span>
                   {entry.note ? <span>备注：{entry.note}</span> : null}

@@ -463,6 +463,44 @@ function toRankingEntry(row: RankingEntryRow) {
   };
 }
 
+async function recomputeRankingDecisions(db: D1Database, snapshotId: string, style: string) {
+  const entries = await db
+    .prepare(
+      `SELECT
+         ranking_entries.*,
+         fans.statuses_json AS statuses_json
+       FROM ranking_entries
+       LEFT JOIN fans ON fans.id = ranking_entries.fan_id
+       WHERE ranking_entries.ranking_snapshot_id = ?
+       ORDER BY ranking_entries.competition_score DESC, ranking_entries.rank_order ASC`
+    )
+    .bind(snapshotId)
+    .all<RankingEntryRow & { statuses_json: string | null }>();
+
+  let recommendedCount = 0;
+  const limit = rankingSeatLimit(style);
+  const timestamp = nowIso();
+  const updates = entries.results.map((entry) => {
+    const statuses = parseStatuses(entry.statuses_json ?? "[]");
+    let decision = "waitlist";
+
+    if (statuses.includes("blacklisted")) {
+      decision = "blocked";
+    } else if (recommendedCount < limit) {
+      decision = "recommended";
+      recommendedCount += 1;
+    }
+
+    return db
+      .prepare("UPDATE ranking_entries SET seat_decision = ?, updated_at = ? WHERE id = ?")
+      .bind(decision, timestamp, entry.id);
+  });
+
+  if (updates.length > 0) {
+    await db.batch(updates);
+  }
+}
+
 async function refreshFanTicketBalance(db: D1Database, fanId: string) {
   const balance = await getFanTicketBalance(db, fanId);
 
@@ -1614,7 +1652,15 @@ app.get("/api/rankings", async (context) => {
         `SELECT *
          FROM ranking_entries
          WHERE ranking_snapshot_id = ?
-         ORDER BY rank_order ASC, competition_score DESC`
+         ORDER BY
+           CASE seat_decision
+             WHEN 'recommended' THEN 1
+             WHEN 'waitlist' THEN 2
+             WHEN 'blocked' THEN 3
+             ELSE 4
+           END,
+           competition_score DESC,
+           rank_order ASC`
       )
         .bind(activeSnapshotId)
         .all<RankingEntryRow>()
@@ -1738,8 +1784,7 @@ app.post("/api/rankings/:snapshotId/entries", async (context) => {
 
   const statuses = parseStatuses(fan.statuses_json);
   const competitionScore = giftDiamonds + ticketUsed + manualAdjustment;
-  const limit = rankingSeatLimit(snapshot.style);
-  const seatDecision = statuses.includes("blacklisted") ? "blocked" : rankOrder <= limit ? "recommended" : "waitlist";
+  const initialSeatDecision = statuses.includes("blacklisted") ? "blocked" : "waitlist";
   const existing = await context.env.DB.prepare("SELECT id FROM ranking_entries WHERE ranking_snapshot_id = ? AND fan_id = ?")
     .bind(snapshotId, fan.id)
     .first<{ id: string }>();
@@ -1762,7 +1807,7 @@ app.post("/api/rankings/:snapshotId/entries", async (context) => {
         manualAdjustment,
         competitionScore,
         fanTypeFromStatuses(statuses),
-        seatDecision,
+        initialSeatDecision,
         body.note?.trim() || null,
         timestamp,
         existing.id
@@ -1788,13 +1833,15 @@ app.post("/api/rankings/:snapshotId/entries", async (context) => {
         manualAdjustment,
         competitionScore,
         fanTypeFromStatuses(statuses),
-        seatDecision,
+        initialSeatDecision,
         body.note?.trim() || null,
         timestamp,
         timestamp
       )
       .run();
   }
+
+  await recomputeRankingDecisions(context.env.DB, snapshotId, snapshot.style);
 
   await writeAuditLog(
     context.env.DB,
