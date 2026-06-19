@@ -63,6 +63,21 @@ type FanRow = {
   updated_at: string;
 };
 
+type LiveSessionRow = {
+  id: string;
+  streamer_id: string;
+  streamer_name: string | null;
+  title: string;
+  session_type: string;
+  status: string;
+  started_at: string | null;
+  ended_at: string | null;
+  settled_at: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type StreamerOptionRow = {
   id: string;
   name: string;
@@ -157,7 +172,8 @@ async function writeAuditLog(
   action: string,
   targetType: string,
   targetId: string,
-  note?: string
+  note?: string,
+  targetStreamerId?: string | null
 ) {
   await db
     .prepare(
@@ -169,7 +185,7 @@ async function writeAuditLog(
       createId("log"),
       account.id,
       account.role,
-      account.streamerId,
+      targetStreamerId ?? account.streamerId,
       action,
       targetType,
       targetId,
@@ -252,6 +268,33 @@ function toFan(row: FanRow) {
     isPublicInBalanceBoard: Boolean(row.is_public_in_balance_board),
     publicName: row.public_name,
     cachedTicketBalance: row.cached_ticket_balance,
+    note: row.note,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function normalizeSessionType(value?: string) {
+  const allowed = new Set(["afternoon", "evening", "custom"]);
+  return value && allowed.has(value) ? value : "custom";
+}
+
+function normalizeSessionStatus(value?: string) {
+  const allowed = new Set(["preparing", "live", "pending_settlement", "settled", "cancelled"]);
+  return value && allowed.has(value) ? value : null;
+}
+
+function toLiveSession(row: LiveSessionRow) {
+  return {
+    id: row.id,
+    streamerId: row.streamer_id,
+    streamerName: row.streamer_name,
+    title: row.title,
+    sessionType: row.session_type,
+    status: row.status,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    settledAt: row.settled_at,
     note: row.note,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -871,7 +914,8 @@ app.post("/api/fans", async (context) => {
     "create_fan",
     "fan",
     fanId,
-    `创建粉丝资料：${displayName}`
+    `创建粉丝资料：${displayName}`,
+    streamerId
   );
 
   return context.json({ ok: true, id: fanId });
@@ -952,7 +996,180 @@ app.patch("/api/fans/:fanId", async (context) => {
     "update_fan",
     "fan",
     fanId,
-    `编辑粉丝资料：${displayName}`
+    `编辑粉丝资料：${displayName}`,
+    existing.streamer_id
+  );
+
+  return context.json({ ok: true });
+});
+
+app.get("/api/live-sessions", async (context) => {
+  const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!account) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+
+  const requestedStreamerId = context.req.query("streamerId");
+  const { streamerId, streamers } = await resolveStreamerId(context.env.DB, account, requestedStreamerId);
+  if (!streamerId) {
+    return context.json({ items: [], streamers, activeStreamerId: null });
+  }
+
+  const status = context.req.query("status")?.trim();
+  const statusFilter = normalizeSessionStatus(status) ?? null;
+  const rows = await context.env.DB.prepare(
+    `SELECT
+       live_sessions.*,
+       streamers.name AS streamer_name
+     FROM live_sessions
+     INNER JOIN streamers ON streamers.id = live_sessions.streamer_id
+     WHERE live_sessions.streamer_id = ?
+       AND (? IS NULL OR live_sessions.status = ?)
+     ORDER BY live_sessions.created_at DESC`
+  )
+    .bind(streamerId, statusFilter, statusFilter)
+    .all<LiveSessionRow>();
+
+  return context.json({
+    items: rows.results.map(toLiveSession),
+    streamers,
+    activeStreamerId: streamerId
+  });
+});
+
+app.post("/api/live-sessions", async (context) => {
+  const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!account) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+
+  const body = await context.req.json<{
+    streamerId?: string;
+    title?: string;
+    sessionType?: string;
+    note?: string;
+  }>();
+  const { streamerId } = await resolveStreamerId(context.env.DB, account, body.streamerId);
+  if (!streamerId) {
+    return context.json(jsonError("没有可用的主播空间。"), 400);
+  }
+
+  const title = body.title?.trim();
+  if (!title) {
+    return context.json(jsonError("请填写场次标题。"), 400);
+  }
+
+  const sessionType = normalizeSessionType(body.sessionType);
+  const timestamp = nowIso();
+  const sessionId = createId("sesn");
+
+  await context.env.DB.prepare(
+    `INSERT INTO live_sessions
+      (id, streamer_id, title, session_type, status, note, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'preparing', ?, ?, ?)`
+  )
+    .bind(sessionId, streamerId, title, sessionType, body.note?.trim() || null, timestamp, timestamp)
+    .run();
+
+  await writeAuditLog(
+    context.env.DB,
+    toPublicAccount(account),
+    "create_live_session",
+    "live_session",
+    sessionId,
+    `创建直播场次：${title}`,
+    streamerId
+  );
+
+  return context.json({ ok: true, id: sessionId });
+});
+
+app.patch("/api/live-sessions/:sessionId", async (context) => {
+  const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!account) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+
+  const sessionId = context.req.param("sessionId");
+  const existing = await context.env.DB.prepare(
+    `SELECT
+       live_sessions.*,
+       streamers.name AS streamer_name
+     FROM live_sessions
+     INNER JOIN streamers ON streamers.id = live_sessions.streamer_id
+     WHERE live_sessions.id = ?`
+  )
+    .bind(sessionId)
+    .first<LiveSessionRow>();
+
+  if (!existing) {
+    return context.json(jsonError("场次不存在。", 404), 404);
+  }
+
+  const { streamerId } = await resolveStreamerId(context.env.DB, account, existing.streamer_id);
+  if (streamerId !== existing.streamer_id) {
+    return context.json(jsonError("没有权限编辑该场次。", 403), 403);
+  }
+
+  const body = await context.req.json<{
+    title?: string;
+    sessionType?: string;
+    status?: string;
+    note?: string;
+  }>();
+
+  const title = body.title?.trim();
+  if (!title) {
+    return context.json(jsonError("请填写场次标题。"), 400);
+  }
+
+  const status = normalizeSessionStatus(body.status);
+  if (!status) {
+    return context.json(jsonError("场次状态不正确。"), 400);
+  }
+
+  const sessionType = normalizeSessionType(body.sessionType);
+  const timestamp = nowIso();
+  const startedAt = status === "live" && !existing.started_at ? timestamp : existing.started_at;
+  const endedAt =
+    (status === "pending_settlement" || status === "settled" || status === "cancelled") && !existing.ended_at
+      ? timestamp
+      : existing.ended_at;
+  const settledAt = status === "settled" && !existing.settled_at ? timestamp : existing.settled_at;
+
+  await context.env.DB.prepare(
+    `UPDATE live_sessions
+     SET title = ?,
+         session_type = ?,
+         status = ?,
+         started_at = ?,
+         ended_at = ?,
+         settled_at = ?,
+         note = ?,
+         updated_at = ?
+     WHERE id = ?`
+  )
+    .bind(
+      title,
+      sessionType,
+      status,
+      startedAt,
+      endedAt,
+      settledAt,
+      body.note?.trim() || null,
+      timestamp,
+      sessionId
+    )
+    .run();
+
+  await writeAuditLog(
+    context.env.DB,
+    toPublicAccount(account),
+    "update_live_session",
+    "live_session",
+    sessionId,
+    `编辑直播场次：${title}，状态：${status}`,
+    existing.streamer_id
   );
 
   return context.json({ ok: true });

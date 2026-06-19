@@ -403,6 +403,11 @@ h1 {
   margin-bottom: 14px;
 }
 
+.compact-filter {
+  grid-template-columns: minmax(160px, 220px) auto;
+  justify-content: start;
+}
+
 .check-group {
   display: flex;
   flex-wrap: wrap;
