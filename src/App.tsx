@@ -1,15 +1,18 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BadgeCent,
   Camera,
   CalendarDays,
   ClipboardList,
   Database,
+  Home,
   LayoutDashboard,
+  ListChecks,
   LockKeyhole,
   LogOut,
-  Settings,
+  Radio,
   ShieldCheck,
+  UserCog,
   Users
 } from "lucide-react";
 
@@ -27,16 +30,18 @@ type SetupStatus = {
 };
 
 const navItems = [
-  { key: "dashboard", label: "工作台", icon: LayoutDashboard },
-  { key: "sessions", label: "场次", icon: CalendarDays },
-  { key: "ranking", label: "定榜", icon: ClipboardList },
-  { key: "locks", label: "锁牌", icon: LockKeyhole },
-  { key: "tickets", label: "存票", icon: BadgeCent },
-  { key: "fans", label: "粉丝", icon: Users },
-  { key: "screenshots", label: "截图", icon: Camera },
-  { key: "data", label: "资料", icon: Database },
-  { key: "settings", label: "设置", icon: Settings }
-];
+  { key: "today", label: "今日工作台", icon: Home, roles: ["streamer"] },
+  { key: "session-workspace", label: "当前场次", icon: Radio, roles: ["streamer", "admin"] },
+  { key: "admin-home", label: "管理首页", icon: LayoutDashboard, roles: ["admin"] },
+  { key: "sessions", label: "场次管理", icon: CalendarDays, roles: ["admin", "streamer"] },
+  { key: "ranking", label: "定榜管理", icon: ClipboardList, roles: ["admin", "streamer"] },
+  { key: "tickets", label: "票务流水", icon: BadgeCent, roles: ["admin", "streamer"] },
+  { key: "fans", label: "粉丝资料", icon: Users, roles: ["admin", "streamer"] },
+  { key: "locks", label: "锁牌", icon: LockKeyhole, roles: ["admin", "streamer"] },
+  { key: "screenshots", label: "截图", icon: Camera, roles: ["admin", "streamer"] },
+  { key: "data", label: "基础资料", icon: Database, roles: ["admin"] },
+  { key: "settings", label: "账号设置", icon: UserCog, roles: ["admin"] }
+] as const;
 
 const cards = [
   { title: "当前场次", value: "未开始", note: "创建下午场或晚上场后进入直播流程" },
@@ -45,7 +50,8 @@ const cards = [
   { title: "截图存储", value: "暂缓", note: "R2 需绑定银行卡，当前先不启用云端截图" }
 ];
 
-type ViewKey = (typeof navItems)[number]["key"];
+type ViewKey = (typeof navItems)[number]["key"] | "dashboard";
+type WorkspaceTab = "ranking" | "lineup" | "match" | "tickets" | "settlement" | "notes";
 
 type StreamerAccountItem = {
   streamer: {
@@ -267,7 +273,8 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
 export function App() {
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
-  const [activeView, setActiveView] = useState<ViewKey>("dashboard");
+  const [activeView, setActiveView] = useState<ViewKey>("today");
+  const [currentSessionId, setCurrentSessionId] = useState("");
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
@@ -278,6 +285,16 @@ export function App() {
 
   const isSetupMode = Boolean(setupStatus?.needsAdminSetup);
   const authTitle = useMemo(() => (isSetupMode ? "初始化管理员" : "登录后台"), [isSetupMode]);
+  const visibleNavItems = useMemo(
+    () => navItems.filter((item) => !account || item.roles.some((role) => role === account.role)),
+    [account]
+  );
+  const pageTitle = useMemo(() => {
+    if (activeView === "today") return "今日工作台";
+    if (activeView === "session-workspace") return "当前场次工作台";
+    if (activeView === "admin-home") return "管理首页";
+    return navItems.find((item) => item.key === activeView)?.label ?? "直播管理工作台";
+  }, [activeView]);
 
   useEffect(() => {
     async function bootstrap() {
@@ -289,6 +306,9 @@ export function App() {
 
         setSetupStatus(status);
         setAccount(me.account);
+        if (me.account) {
+          setActiveView(me.account.role === "admin" ? "admin-home" : "today");
+        }
         setMessage(status.needsAdminSetup ? "首次使用需要先创建管理员账号。" : "请输入账号和密码。");
       } catch (error) {
         setIsApiUnavailable(true);
@@ -311,6 +331,7 @@ export function App() {
           body: JSON.stringify({ username, password, displayName, setupToken })
         });
         setAccount(result.account);
+        setActiveView(result.account.role === "admin" ? "admin-home" : "today");
         setSetupStatus({ needsAdminSetup: false, requiresSetupToken: false });
         setMessage("管理员已创建，请使用该账号登录。");
       } else {
@@ -319,6 +340,7 @@ export function App() {
           body: JSON.stringify({ username, password })
         });
         setAccount(result.account);
+        setActiveView(result.account.role === "admin" ? "admin-home" : "today");
         setMessage("登录成功。");
       }
 
@@ -333,10 +355,47 @@ export function App() {
   async function logout() {
     await apiRequest<{ ok: boolean }>("/api/auth/logout", { method: "POST", body: "{}" });
     setAccount(null);
+    setCurrentSessionId("");
+    setActiveView("today");
     setMessage("已登出。");
   }
 
   function renderContent() {
+    if (activeView === "today") {
+      return (
+        <TodayWorkspace
+          account={account}
+          onOpenSession={(sessionId) => {
+            setCurrentSessionId(sessionId);
+            setActiveView("session-workspace");
+          }}
+        />
+      );
+    }
+
+    if (activeView === "session-workspace") {
+      return (
+        <CurrentSessionWorkspace
+          account={account}
+          initialSessionId={currentSessionId}
+          onSessionChange={setCurrentSessionId}
+        />
+      );
+    }
+
+    if (activeView === "admin-home") {
+      return (
+        <AdminHome
+          account={account}
+          onNavigate={setActiveView}
+          onOpenSession={(sessionId) => {
+            setCurrentSessionId(sessionId);
+            setActiveView("session-workspace");
+          }}
+        />
+      );
+    }
+
     if (activeView === "ranking") {
       return <RankingManager account={account} />;
     }
@@ -441,7 +500,7 @@ export function App() {
           </div>
         </div>
         <nav className="nav-list">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             return (
               <button
@@ -462,16 +521,22 @@ export function App() {
         <header className="page-header">
           <div>
             <p className="eyebrow">TypeScript + React + Drizzle</p>
-            <h1>直播管理工作台</h1>
+            <h1>{pageTitle}</h1>
             <p className="header-copy">
               {isApiUnavailable
                 ? "当前页面已加载，后端 Worker API 尚未连接；本地联调时启动 Worker 后可初始化管理员和登录。"
-                : "当前已接入管理员初始化、登录状态识别和单账号单设备会话基础。"}
+                : account?.role === "admin"
+                  ? "管理端用于账号、资料、代操作和排查；直播中的高频动作集中到当前场次工作台。"
+                  : "主播端优先围绕当前场次操作，减少直播时在多个资料页之间来回切换。"}
             </p>
           </div>
           <div className="header-actions">
-            <button className="primary-button" onClick={() => setActiveView("sessions")} type="button">
-              创建直播场次
+            <button
+              className="primary-button"
+              onClick={() => setActiveView(account?.role === "admin" ? "admin-home" : "today")}
+              type="button"
+            >
+              {account?.role === "admin" ? "回到管理首页" : "回到今日工作台"}
             </button>
             {account ? (
               <button className="icon-button" onClick={logout} title="登出" type="button">
@@ -547,6 +612,506 @@ function DashboardView({
           </div>
         </section>
     </>
+  );
+}
+
+function TodayWorkspace({
+  account,
+  onOpenSession
+}: {
+  account: Account | null;
+  onOpenSession: (sessionId: string) => void;
+}) {
+  const [items, setItems] = useState<LiveSessionItem[]>([]);
+  const [streamers, setStreamers] = useState<StreamerOption[]>([]);
+  const [activeStreamerId, setActiveStreamerId] = useState("");
+  const [notice, setNotice] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadSessions = useCallback(async () => {
+    const result = await apiRequest<{
+      items: LiveSessionItem[];
+      streamers: StreamerOption[];
+      activeStreamerId: string | null;
+    }>("/api/live-sessions");
+    setItems(result.items);
+    setStreamers(result.streamers);
+    setActiveStreamerId(result.activeStreamerId ?? "");
+  }, []);
+
+  useEffect(() => {
+    if (account) {
+      loadSessions().catch((error) => setNotice(error instanceof Error ? error.message : "加载场次失败"));
+    }
+  }, [account, loadSessions]);
+
+  if (!account) {
+    return (
+      <section className="panel">
+        <div className="panel-header">
+          <h2>今日工作台</h2>
+          <span>未登录</span>
+        </div>
+        <p className="muted">请先登录后再进入直播工作台。</p>
+      </section>
+    );
+  }
+
+  const activeSessions = items.filter((item) => item.status === "live" || item.status === "preparing");
+  const pendingSessions = items.filter((item) => item.status === "pending_settlement");
+  const currentSession = activeSessions[0] ?? pendingSessions[0] ?? items[0];
+
+  async function createQuickSession(sessionType: string) {
+    if (!activeStreamerId) {
+      setNotice("请先创建或选择主播账号。");
+      return;
+    }
+
+    setIsLoading(true);
+    setNotice("");
+    try {
+      const result = await apiRequest<{ ok: boolean; id: string }>("/api/live-sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          streamerId: activeStreamerId,
+          title: defaultSessionTitle(sessionType),
+          sessionType,
+          status: "live",
+          note: ""
+        })
+      });
+      await loadSessions();
+      onOpenSession(result.id);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "创建场次失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <section className="metric-grid">
+        <article className="metric-card">
+          <span>当前场次</span>
+          <strong>{currentSession ? sessionStatusLabel(currentSession.status) : "未开始"}</strong>
+          <p>{currentSession ? currentSession.title : "创建下午场或晚上场后进入直播流程"}</p>
+        </article>
+        <article className="metric-card">
+          <span>待结算</span>
+          <strong>{pendingSessions.length}</strong>
+          <p>直播结束后确认取票回退和长期余额变化。</p>
+        </article>
+        <article className="metric-card">
+          <span>进行中/准备中</span>
+          <strong>{activeSessions.length}</strong>
+          <p>优先进入最近的当前场次继续操作。</p>
+        </article>
+        <article className="metric-card">
+          <span>公开存票榜</span>
+          <strong>待接入</strong>
+          <p>游客只看到公开模块和公开字段。</p>
+        </article>
+      </section>
+
+      <section className="work-area">
+        <div className="panel">
+          <div className="panel-header">
+            <h2>今天要做的事</h2>
+            <span>主播端</span>
+          </div>
+          {currentSession ? (
+            <div className="current-session-card">
+              <strong>{currentSession.title}</strong>
+              <span>
+                {sessionTypeLabel(currentSession.sessionType)} · {sessionStatusLabel(currentSession.status)}
+              </span>
+              <span>
+                开始：{formatDateTime(currentSession.startedAt)} · 结束：{formatDateTime(currentSession.endedAt)}
+              </span>
+              {currentSession.note ? <span>备注：{currentSession.note}</span> : null}
+              <button className="primary-button" onClick={() => onOpenSession(currentSession.id)} type="button">
+                进入当前场次
+              </button>
+            </div>
+          ) : (
+            <p className="muted">当前没有直播场次，可以直接创建下午场或晚上场。</p>
+          )}
+          {notice ? <p className="notice">{notice}</p> : null}
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <h2>快速开场</h2>
+            <span>减少跳页</span>
+          </div>
+          {account.role === "admin" ? (
+            <label className="field-label">
+              代操作主播
+              <select onChange={(event) => setActiveStreamerId(event.target.value)} value={activeStreamerId}>
+                {streamers.map((streamer) => (
+                  <option key={streamer.id} value={streamer.id}>
+                    {streamer.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <div className="quick-actions">
+            <button className="secondary-button" disabled={isLoading} onClick={() => createQuickSession("afternoon")} type="button">
+              创建下午场
+            </button>
+            <button className="secondary-button" disabled={isLoading} onClick={() => createQuickSession("evening")} type="button">
+              创建晚上场
+            </button>
+            <button className="secondary-button" disabled={isLoading} onClick={() => createQuickSession("custom")} type="button">
+              创建自定义
+            </button>
+          </div>
+          <ol className="flow-list compact-flow">
+            <li>创建或进入当前场次</li>
+            <li>录入定榜并查看推荐</li>
+            <li>确认名单后进入对局</li>
+            <li>直播中随时处理存票</li>
+            <li>结束后统一结算</li>
+          </ol>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function AdminHome({
+  account,
+  onNavigate,
+  onOpenSession
+}: {
+  account: Account | null;
+  onNavigate: (view: ViewKey) => void;
+  onOpenSession: (sessionId: string) => void;
+}) {
+  const [sessions, setSessions] = useState<LiveSessionItem[]>([]);
+  const [streamers, setStreamers] = useState<StreamerOption[]>([]);
+  const [notice, setNotice] = useState("");
+
+  const loadAdminHome = useCallback(async () => {
+    const result = await apiRequest<{
+      items: LiveSessionItem[];
+      streamers: StreamerOption[];
+      activeStreamerId: string | null;
+    }>("/api/live-sessions");
+    setSessions(result.items);
+    setStreamers(result.streamers);
+  }, []);
+
+  useEffect(() => {
+    if (account) {
+      loadAdminHome().catch((error) => setNotice(error instanceof Error ? error.message : "加载管理首页失败"));
+    }
+  }, [account, loadAdminHome]);
+
+  if (!account || account.role !== "admin") {
+    return (
+      <section className="panel">
+        <div className="panel-header">
+          <h2>管理首页</h2>
+          <span>无权限</span>
+        </div>
+        <p className="muted">当前账号不能访问管理端。</p>
+      </section>
+    );
+  }
+
+  const liveSessions = sessions.filter((session) => session.status === "live");
+  const pendingSessions = sessions.filter((session) => session.status === "pending_settlement");
+
+  return (
+    <>
+      <section className="metric-grid">
+        <article className="metric-card">
+          <span>主播空间</span>
+          <strong>{streamers.length}</strong>
+          <p>管理员可创建账号、停用账号，并代主播处理资料和场次。</p>
+        </article>
+        <article className="metric-card">
+          <span>进行中场次</span>
+          <strong>{liveSessions.length}</strong>
+          <p>需要辅助时从这里进入当前场次工作台。</p>
+        </article>
+        <article className="metric-card">
+          <span>待结算</span>
+          <strong>{pendingSessions.length}</strong>
+          <p>后续结算页会集中显示需要确认的票务变化。</p>
+        </article>
+        <article className="metric-card">
+          <span>操作日志</span>
+          <strong>待筛选</strong>
+          <p>关键操作已逐步写日志，后续补日志筛选页。</p>
+        </article>
+      </section>
+
+      <section className="work-area">
+        <div className="panel">
+          <div className="panel-header">
+            <h2>需要关注的场次</h2>
+            <span>{liveSessions.length + pendingSessions.length}</span>
+          </div>
+          {liveSessions.length + pendingSessions.length === 0 ? (
+            <p className="muted">当前没有进行中或待结算场次。</p>
+          ) : (
+            <div className="account-list">
+              {[...liveSessions, ...pendingSessions].map((session) => (
+                <article className="account-row fan-row" key={session.id}>
+                  <div>
+                    <strong>{session.title}</strong>
+                    <span>
+                      {session.streamerName || "未知主播"} · {sessionTypeLabel(session.sessionType)} ·{" "}
+                      {sessionStatusLabel(session.status)}
+                    </span>
+                    <span>开始：{formatDateTime(session.startedAt)}</span>
+                  </div>
+                  <div className="row-actions">
+                    <button className="secondary-button" onClick={() => onOpenSession(session.id)} type="button">
+                      代操作
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+          {notice ? <p className="notice">{notice}</p> : null}
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <h2>管理入口</h2>
+            <span>后台</span>
+          </div>
+          <div className="quick-actions">
+            <button className="secondary-button" onClick={() => onNavigate("settings")} type="button">
+              主播账号
+            </button>
+            <button className="secondary-button" onClick={() => onNavigate("fans")} type="button">
+              粉丝资料
+            </button>
+            <button className="secondary-button" onClick={() => onNavigate("tickets")} type="button">
+              票务流水
+            </button>
+            <button className="secondary-button" onClick={() => onNavigate("sessions")} type="button">
+              场次管理
+            </button>
+          </div>
+          <p className="muted">管理员侧重点是代操作、排查和维护资料；直播现场高频操作统一放到当前场次工作台。</p>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function CurrentSessionWorkspace({
+  account,
+  initialSessionId,
+  onSessionChange
+}: {
+  account: Account | null;
+  initialSessionId: string;
+  onSessionChange: (sessionId: string) => void;
+}) {
+  const [sessions, setSessions] = useState<LiveSessionItem[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState(initialSessionId);
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("ranking");
+  const [notice, setNotice] = useState("");
+
+  const loadSessions = useCallback(async () => {
+    const result = await apiRequest<{
+      items: LiveSessionItem[];
+      streamers: StreamerOption[];
+      activeStreamerId: string | null;
+    }>("/api/live-sessions");
+    setSessions(result.items);
+    const preferredId =
+      initialSessionId ||
+      result.items.find((item) => item.status === "live")?.id ||
+      result.items.find((item) => item.status === "preparing")?.id ||
+      result.items[0]?.id ||
+      "";
+    setActiveSessionId((current) => current || preferredId);
+    if (preferredId) {
+      onSessionChange(preferredId);
+    }
+  }, [initialSessionId, onSessionChange]);
+
+  useEffect(() => {
+    if (account) {
+      loadSessions().catch((error) => setNotice(error instanceof Error ? error.message : "加载当前场次失败"));
+    }
+  }, [account, loadSessions]);
+
+  if (!account) {
+    return (
+      <section className="panel">
+        <div className="panel-header">
+          <h2>当前场次</h2>
+          <span>未登录</span>
+        </div>
+        <p className="muted">请先登录后再进入当前场次工作台。</p>
+      </section>
+    );
+  }
+
+  const activeSession = sessions.find((session) => session.id === activeSessionId);
+  const tabs: Array<{ key: WorkspaceTab; label: string }> = [
+    { key: "ranking", label: "定榜" },
+    { key: "lineup", label: "名单确认" },
+    { key: "match", label: "对局/锁牌" },
+    { key: "tickets", label: "存票" },
+    { key: "settlement", label: "结算" },
+    { key: "notes", label: "截图/备注" }
+  ];
+
+  function renderTabContent() {
+    if (!activeSession) {
+      return (
+        <section className="panel">
+          <div className="panel-header">
+            <h2>没有可操作场次</h2>
+            <span>待创建</span>
+          </div>
+          <p className="muted">请先到今日工作台或场次管理中创建直播场次。</p>
+        </section>
+      );
+    }
+
+    if (activeTab === "ranking") {
+      return <RankingManager account={account} contextSessionId={activeSession.id} />;
+    }
+
+    if (activeTab === "tickets") {
+      return <TicketManager account={account} contextSessionId={activeSession.id} />;
+    }
+
+    if (activeTab === "lineup") {
+      return (
+        <WorkflowPlaceholder
+          icon={<ListChecks size={22} />}
+          title="名单确认"
+          status="下一步实现"
+          items={[
+            "从定榜推荐名单带入 8 个席位",
+            "支持上车、待定、补位和备注",
+            "确认后创建对局草稿"
+          ]}
+        />
+      );
+    }
+
+    if (activeTab === "match") {
+      return (
+        <WorkflowPlaceholder
+          icon={<LockKeyhole size={22} />}
+          title="对局/锁牌"
+          status="待接入规则"
+          items={["8 个席位记录游戏名", "存活玩家锁牌互斥", "淘汰后保留记录并释放占用"]}
+        />
+      );
+    }
+
+    if (activeTab === "settlement") {
+      return (
+        <WorkflowPlaceholder
+          icon={<BadgeCent size={22} />}
+          title="结算"
+          status="待接入预览"
+          items={["汇总本场存票、取票、现刷和修正", "标记未使用取票回退", "二次确认后写入结算日志"]}
+        />
+      );
+    }
+
+    return (
+      <WorkflowPlaceholder
+        icon={<Camera size={22} />}
+        title="截图/备注"
+        status="R2 暂缓"
+        items={["截图云存储暂缓", "先保留业务关联和公开策略设计", "后续可接公开截图墙"]}
+      />
+    );
+  }
+
+  return (
+    <>
+      <section className="session-context">
+        <div>
+          <p className="eyebrow">{account.role === "admin" ? "管理员代操作" : "主播当前场次"}</p>
+          <h2>{activeSession ? activeSession.title : "未选择场次"}</h2>
+          <p>
+            {activeSession
+              ? `${activeSession.streamerName || account.displayName} · ${sessionTypeLabel(activeSession.sessionType)} · ${sessionStatusLabel(activeSession.status)}`
+              : "创建场次后，定榜、名单、锁牌、存票和结算都会默认挂到当前场次。"}
+          </p>
+        </div>
+        <label>
+          切换场次
+          <select
+            onChange={(event) => {
+              setActiveSessionId(event.target.value);
+              onSessionChange(event.target.value);
+            }}
+            value={activeSessionId}
+          >
+            {sessions.map((session) => (
+              <option key={session.id} value={session.id}>
+                {session.title} · {sessionStatusLabel(session.status)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+
+      <div className="workspace-tabs">
+        {tabs.map((tab) => (
+          <button
+            className={activeTab === tab.key ? "active" : ""}
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            type="button"
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {notice ? <p className="notice workspace-notice">{notice}</p> : null}
+      {renderTabContent()}
+    </>
+  );
+}
+
+function WorkflowPlaceholder({
+  icon,
+  title,
+  status,
+  items
+}: {
+  icon: ReactNode;
+  title: string;
+  status: string;
+  items: string[];
+}) {
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <h2>
+          <span className="title-icon">{icon}</span>
+          {title}
+        </h2>
+        <span>{status}</span>
+      </div>
+      <ol className="flow-list">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ol>
+    </section>
   );
 }
 
@@ -785,7 +1350,7 @@ function LiveSessionManager({ account }: { account: Account | null }) {
   );
 }
 
-function TicketManager({ account }: { account: Account | null }) {
+function TicketManager({ account, contextSessionId = "" }: { account: Account | null; contextSessionId?: string }) {
   const [items, setItems] = useState<TicketLedgerItem[]>([]);
   const [fans, setFans] = useState<FanItem[]>([]);
   const [sessions, setSessions] = useState<LiveSessionItem[]>([]);
@@ -822,13 +1387,19 @@ function TicketManager({ account }: { account: Account | null }) {
     setForm((current) => ({
       ...current,
       fanId: current.fanId || result.fans[0]?.id || "",
-      sessionId: current.sessionId || result.sessions[0]?.id || ""
+      sessionId: contextSessionId || current.sessionId || result.sessions[0]?.id || ""
     }));
-  }, []);
+  }, [contextSessionId]);
 
   useEffect(() => {
     loadTickets().catch((error) => setNotice(error instanceof Error ? error.message : "加载失败"));
   }, [loadTickets]);
+
+  useEffect(() => {
+    if (contextSessionId) {
+      setForm((current) => ({ ...current, sessionId: contextSessionId }));
+    }
+  }, [contextSessionId]);
 
   if (!account) {
     return (
@@ -1050,7 +1621,7 @@ function TicketManager({ account }: { account: Account | null }) {
   );
 }
 
-function RankingManager({ account }: { account: Account | null }) {
+function RankingManager({ account, contextSessionId = "" }: { account: Account | null; contextSessionId?: string }) {
   const [snapshots, setSnapshots] = useState<RankingSnapshotItem[]>([]);
   const [entries, setEntries] = useState<RankingEntryItem[]>([]);
   const [sessions, setSessions] = useState<LiveSessionItem[]>([]);
@@ -1098,17 +1669,23 @@ function RankingManager({ account }: { account: Account | null }) {
     setActiveSnapshotId(result.activeSnapshotId ?? "");
     setRankingForm((current) => ({
       ...current,
-      sessionId: current.sessionId || result.sessions[0]?.id || ""
+      sessionId: contextSessionId || current.sessionId || result.sessions[0]?.id || ""
     }));
     setEntryForm((current) => ({
       ...current,
       fanId: current.fanId || result.fans[0]?.id || ""
     }));
-  }, []);
+  }, [contextSessionId]);
 
   useEffect(() => {
     loadRankings().catch((error) => setNotice(error instanceof Error ? error.message : "加载失败"));
   }, [loadRankings]);
+
+  useEffect(() => {
+    if (contextSessionId) {
+      setRankingForm((current) => ({ ...current, sessionId: contextSessionId }));
+    }
+  }, [contextSessionId]);
 
   if (!account) {
     return (
