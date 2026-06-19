@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BadgeCent,
   Camera,
@@ -26,14 +26,14 @@ type SetupStatus = {
 };
 
 const navItems = [
-  { label: "工作台", icon: LayoutDashboard },
-  { label: "定榜", icon: ClipboardList },
-  { label: "锁牌", icon: LockKeyhole },
-  { label: "存票", icon: BadgeCent },
-  { label: "粉丝", icon: Users },
-  { label: "截图", icon: Camera },
-  { label: "资料", icon: Database },
-  { label: "设置", icon: Settings }
+  { key: "dashboard", label: "工作台", icon: LayoutDashboard },
+  { key: "ranking", label: "定榜", icon: ClipboardList },
+  { key: "locks", label: "锁牌", icon: LockKeyhole },
+  { key: "tickets", label: "存票", icon: BadgeCent },
+  { key: "fans", label: "粉丝", icon: Users },
+  { key: "screenshots", label: "截图", icon: Camera },
+  { key: "data", label: "资料", icon: Database },
+  { key: "settings", label: "设置", icon: Settings }
 ];
 
 const cards = [
@@ -42,6 +42,27 @@ const cards = [
   { title: "公开存票榜", value: "关闭", note: "游客只看到公开模块和公开字段" },
   { title: "截图存储", value: "暂缓", note: "R2 需绑定银行卡，当前先不启用云端截图" }
 ];
+
+type ViewKey = (typeof navItems)[number]["key"];
+
+type StreamerAccountItem = {
+  streamer: {
+    id: string;
+    name: string;
+    douyinName: string | null;
+    note: string | null;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  account: {
+    id: string;
+    username: string;
+    displayName: string;
+    status: string;
+    lastLoginAt: string | null;
+  } | null;
+};
 
 async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -64,6 +85,7 @@ async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
 export function App() {
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
+  const [activeView, setActiveView] = useState<ViewKey>("dashboard");
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
@@ -130,6 +152,14 @@ export function App() {
     await apiRequest<{ ok: boolean }>("/api/auth/logout", { method: "POST", body: "{}" });
     setAccount(null);
     setMessage("已登出。");
+  }
+
+  function renderContent() {
+    if (activeView === "settings") {
+      return <SettingsView account={account} />;
+    }
+
+    return <DashboardView account={account} isApiUnavailable={isApiUnavailable} message={message} />;
   }
 
   if (!account && !isApiUnavailable) {
@@ -216,7 +246,12 @@ export function App() {
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
-              <button className="nav-item" key={item.label} type="button">
+              <button
+                className={`nav-item ${activeView === item.key ? "active" : ""}`}
+                key={item.label}
+                onClick={() => setActiveView(item.key)}
+                type="button"
+              >
                 <Icon size={18} />
                 <span>{item.label}</span>
               </button>
@@ -248,6 +283,23 @@ export function App() {
           </div>
         </header>
 
+        {renderContent()}
+      </main>
+    </div>
+  );
+}
+
+function DashboardView({
+  account,
+  isApiUnavailable,
+  message
+}: {
+  account: Account | null;
+  isApiUnavailable: boolean;
+  message: string;
+}) {
+  return (
+    <>
         <section className="metric-grid">
           {cards.map((card) => (
             <article className="metric-card" key={card.title}>
@@ -296,7 +348,229 @@ export function App() {
             )}
           </div>
         </section>
-      </main>
-    </div>
+    </>
+  );
+}
+
+function SettingsView({ account }: { account: Account | null }) {
+  if (!account) {
+    return (
+      <section className="panel">
+        <div className="panel-header">
+          <h2>设置</h2>
+          <span>未登录</span>
+        </div>
+        <p className="muted">请先登录后再管理设置。</p>
+      </section>
+    );
+  }
+
+  if (account.role !== "admin") {
+    return (
+      <section className="panel">
+        <div className="panel-header">
+          <h2>设置</h2>
+          <span>无权限</span>
+        </div>
+        <p className="muted">当前账号不是管理员，不能管理主播账号。</p>
+      </section>
+    );
+  }
+
+  return <StreamerAccountManager />;
+}
+
+function StreamerAccountManager() {
+  const [items, setItems] = useState<StreamerAccountItem[]>([]);
+  const [streamerName, setStreamerName] = useState("");
+  const [douyinName, setDouyinName] = useState("");
+  const [streamerUsername, setStreamerUsername] = useState("");
+  const [streamerDisplayName, setStreamerDisplayName] = useState("");
+  const [streamerPassword, setStreamerPassword] = useState("");
+  const [note, setNote] = useState("");
+  const [notice, setNotice] = useState("");
+  const [generatedPassword, setGeneratedPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadItems = useCallback(async () => {
+    const result = await apiRequest<{ items: StreamerAccountItem[] }>("/api/admin/streamer-accounts");
+    setItems(result.items);
+  }, []);
+
+  useEffect(() => {
+    loadItems().catch((error) => setNotice(error instanceof Error ? error.message : "加载失败"));
+  }, [loadItems]);
+
+  async function createStreamerAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsLoading(true);
+    setNotice("");
+    setGeneratedPassword("");
+
+    try {
+      const result = await apiRequest<{
+        generatedPassword: string | null;
+      }>("/api/admin/streamer-accounts", {
+        method: "POST",
+        body: JSON.stringify({
+          streamerName,
+          douyinName,
+          username: streamerUsername,
+          displayName: streamerDisplayName,
+          password: streamerPassword,
+          note
+        })
+      });
+
+      setNotice("主播账号已创建。");
+      setGeneratedPassword(result.generatedPassword ?? "");
+      setStreamerName("");
+      setDouyinName("");
+      setStreamerUsername("");
+      setStreamerDisplayName("");
+      setStreamerPassword("");
+      setNote("");
+      await loadItems();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "创建失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function updateStatus(accountId: string, status: "active" | "disabled") {
+    setIsLoading(true);
+    setNotice("");
+
+    try {
+      await apiRequest<{ ok: boolean }>(`/api/admin/accounts/${accountId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status })
+      });
+      setNotice(status === "active" ? "账号已启用。" : "账号已停用。");
+      await loadItems();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "操作失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  return (
+    <section className="settings-grid">
+      <form className="panel form-panel" onSubmit={createStreamerAccount}>
+        <div className="panel-header">
+          <h2>创建主播账号</h2>
+          <span>管理员</span>
+        </div>
+
+        <label>
+          主播名称
+          <input
+            onChange={(event) => setStreamerName(event.target.value)}
+            placeholder="例如 主播小号"
+            required
+            value={streamerName}
+          />
+        </label>
+
+        <label>
+          抖音名
+          <input
+            onChange={(event) => setDouyinName(event.target.value)}
+            placeholder="可选"
+            value={douyinName}
+          />
+        </label>
+
+        <label>
+          登录账号
+          <input
+            autoComplete="off"
+            onChange={(event) => setStreamerUsername(event.target.value)}
+            placeholder="例如 streamer01"
+            required
+            value={streamerUsername}
+          />
+        </label>
+
+        <label>
+          显示名称
+          <input
+            onChange={(event) => setStreamerDisplayName(event.target.value)}
+            placeholder="默认使用主播名称"
+            value={streamerDisplayName}
+          />
+        </label>
+
+        <label>
+          初始密码
+          <input
+            autoComplete="new-password"
+            minLength={8}
+            onChange={(event) => setStreamerPassword(event.target.value)}
+            placeholder="留空自动生成"
+            type="password"
+            value={streamerPassword}
+          />
+        </label>
+
+        <label>
+          备注
+          <input onChange={(event) => setNote(event.target.value)} placeholder="可选" value={note} />
+        </label>
+
+        <button className="primary-button" disabled={isLoading} type="submit">
+          {isLoading ? "处理中..." : "创建主播账号"}
+        </button>
+
+        {notice ? <p className="notice">{notice}</p> : null}
+        {generatedPassword ? (
+          <div className="secret-result">
+            <span>自动生成密码</span>
+            <strong>{generatedPassword}</strong>
+          </div>
+        ) : null}
+      </form>
+
+      <section className="panel list-panel">
+        <div className="panel-header">
+          <h2>主播账号</h2>
+          <span>{items.length}</span>
+        </div>
+
+        {items.length === 0 ? (
+          <p className="muted">还没有主播账号。</p>
+        ) : (
+          <div className="account-list">
+            {items.map((item) => (
+              <article className="account-row" key={item.streamer.id}>
+                <div>
+                  <strong>{item.streamer.name}</strong>
+                  <span>
+                    {item.account?.username ?? "未绑定账号"} ·{" "}
+                    {item.account?.status === "disabled" ? "已停用" : "正常"}
+                  </span>
+                  {item.streamer.douyinName ? <span>抖音：{item.streamer.douyinName}</span> : null}
+                </div>
+
+                {item.account ? (
+                  <button
+                    className="secondary-button"
+                    disabled={isLoading}
+                    onClick={() =>
+                      updateStatus(item.account!.id, item.account!.status === "disabled" ? "active" : "disabled")
+                    }
+                    type="button"
+                  >
+                    {item.account.status === "disabled" ? "启用" : "停用"}
+                  </button>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </section>
   );
 }
