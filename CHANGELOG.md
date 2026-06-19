@@ -92,6 +92,29 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-19 12:10 优化主播账号编辑表单
+
+#### 摘要
+
+- 将主播账号行内编辑框改为带明确字段标签的表单。
+- 调整编辑字段顺序，区分主播资料和登录信息。
+- 优化编辑区域间距，避免只能依赖 placeholder 判断字段。
+
+#### 说明
+
+原编辑状态只有输入框，已有内容时 placeholder 不显示，无法判断字段含义。本次为每个编辑项增加标签，降低误改风险。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "优化主播账号编辑表单"
+git push origin main
+```
+
 ### 2026-06-19 11:59 补充主播账号编辑
 
 #### 摘要

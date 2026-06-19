@@ -621,32 +621,43 @@ function StreamerAccountManager() {
               <article className="account-row" key={item.streamer.id}>
                 {editingStreamerId === item.streamer.id ? (
                   <div className="edit-grid">
-                    <input
-                      onChange={(event) => setEditForm({ ...editForm, streamerName: event.target.value })}
-                      placeholder="主播名称"
-                      value={editForm.streamerName}
-                    />
-                    <input
-                      onChange={(event) => setEditForm({ ...editForm, username: event.target.value })}
-                      placeholder="登录账号"
-                      value={editForm.username}
-                    />
-                    <input
-                      onChange={(event) => setEditForm({ ...editForm, displayName: event.target.value })}
-                      placeholder="显示名称"
-                      value={editForm.displayName}
-                    />
-                    <input
-                      onChange={(event) => setEditForm({ ...editForm, douyinName: event.target.value })}
-                      placeholder="抖音名"
-                      value={editForm.douyinName}
-                    />
-                    <input
-                      className="edit-note"
-                      onChange={(event) => setEditForm({ ...editForm, note: event.target.value })}
-                      placeholder="备注"
-                      value={editForm.note}
-                    />
+                    <label>
+                      主播名称
+                      <input
+                        onChange={(event) => setEditForm({ ...editForm, streamerName: event.target.value })}
+                        value={editForm.streamerName}
+                      />
+                    </label>
+                    <label>
+                      抖音名
+                      <input
+                        onChange={(event) => setEditForm({ ...editForm, douyinName: event.target.value })}
+                        placeholder="可选"
+                        value={editForm.douyinName}
+                      />
+                    </label>
+                    <label>
+                      登录账号
+                      <input
+                        onChange={(event) => setEditForm({ ...editForm, username: event.target.value })}
+                        value={editForm.username}
+                      />
+                    </label>
+                    <label>
+                      显示名称
+                      <input
+                        onChange={(event) => setEditForm({ ...editForm, displayName: event.target.value })}
+                        value={editForm.displayName}
+                      />
+                    </label>
+                    <label className="edit-note">
+                      备注
+                      <input
+                        onChange={(event) => setEditForm({ ...editForm, note: event.target.value })}
+                        placeholder="可选"
+                        value={editForm.note}
+                      />
+                    </label>
                   </div>
                 ) : (
                   <div>
