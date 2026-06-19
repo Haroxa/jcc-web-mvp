@@ -22,7 +22,9 @@ button {
   font: inherit;
 }
 
-input {
+input,
+select,
+textarea {
   width: 100%;
   border: 1px solid #cbd5df;
   border-radius: 8px;
@@ -31,7 +33,17 @@ input {
   padding: 10px 12px;
 }
 
-input:focus {
+textarea {
+  resize: vertical;
+}
+
+input[type="checkbox"] {
+  width: auto;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
   border-color: #1f4f7a;
   outline: 2px solid #cfe0ef;
 }
@@ -384,6 +396,55 @@ h1 {
   gap: 8px;
 }
 
+.filter-bar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 140px auto;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.check-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  margin: 0;
+  padding: 12px;
+}
+
+.check-group legend {
+  color: #405366;
+  font-size: 14px;
+  padding: 0 4px;
+}
+
+.check-group label,
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #405366;
+  font-size: 14px;
+}
+
+.fan-row {
+  align-items: flex-start;
+}
+
+.fan-edit {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.fan-edit .check-group,
+.fan-edit .inline-check,
+.fan-edit label:last-child {
+  grid-column: 1 / -1;
+}
+
 .edit-grid {
   display: grid;
   flex: 1;
@@ -443,6 +504,11 @@ h1 {
 
   .row-actions {
     justify-content: flex-start;
+  }
+
+  .filter-bar,
+  .fan-edit {
+    grid-template-columns: 1fr;
   }
 
   .metric-grid {

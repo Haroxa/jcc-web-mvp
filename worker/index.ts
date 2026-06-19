@@ -46,6 +46,28 @@ type StreamerAccountRow = {
   updated_at: string;
 };
 
+type FanRow = {
+  id: string;
+  streamer_id: string;
+  display_name: string;
+  douyin_name: string | null;
+  wechat_name: string | null;
+  game_name: string | null;
+  fan_group_level: string | null;
+  statuses_json: string;
+  is_public_in_balance_board: number;
+  public_name: string | null;
+  cached_ticket_balance: number;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type StreamerOptionRow = {
+  id: string;
+  name: string;
+};
+
 app.use(
   "/api/*",
   cors({
@@ -201,6 +223,76 @@ function toStreamerAccount(row: StreamerAccountRow) {
         }
       : null
   };
+}
+
+function parseStatuses(value: string) {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeStatuses(statuses?: string[]) {
+  const allowed = new Set(["new_fan", "old_fan", "manager", "violated", "blacklisted"]);
+  return [...new Set((statuses ?? []).filter((status) => allowed.has(status)))];
+}
+
+function toFan(row: FanRow) {
+  return {
+    id: row.id,
+    streamerId: row.streamer_id,
+    displayName: row.display_name,
+    douyinName: row.douyin_name,
+    wechatName: row.wechat_name,
+    gameName: row.game_name,
+    fanGroupLevel: row.fan_group_level,
+    statuses: parseStatuses(row.statuses_json),
+    isPublicInBalanceBoard: Boolean(row.is_public_in_balance_board),
+    publicName: row.public_name,
+    cachedTicketBalance: row.cached_ticket_balance,
+    note: row.note,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+async function listAccessibleStreamers(db: D1Database, account: AccountRow) {
+  if (account.role === "admin") {
+    const result = await db
+      .prepare("SELECT id, name FROM streamers WHERE status = 'active' ORDER BY created_at DESC")
+      .all<StreamerOptionRow>();
+    return result.results;
+  }
+
+  if (!account.streamer_id) {
+    return [];
+  }
+
+  const row = await db
+    .prepare("SELECT id, name FROM streamers WHERE id = ? AND status = 'active'")
+    .bind(account.streamer_id)
+    .first<StreamerOptionRow>();
+
+  return row ? [row] : [];
+}
+
+async function resolveStreamerId(db: D1Database, account: AccountRow, requestedStreamerId?: string | null) {
+  const streamers = await listAccessibleStreamers(db, account);
+  if (streamers.length === 0) {
+    return { streamerId: null, streamers };
+  }
+
+  if (account.role === "streamer") {
+    return { streamerId: account.streamer_id, streamers };
+  }
+
+  if (requestedStreamerId && streamers.some((streamer) => streamer.id === requestedStreamerId)) {
+    return { streamerId: requestedStreamerId, streamers };
+  }
+
+  return { streamerId: streamers[0].id, streamers };
 }
 
 app.get("/api/health", (context) => {
@@ -678,6 +770,192 @@ app.post("/api/admin/accounts/:accountId/reset-password", async (context) => {
   );
 
   return context.json({ password });
+});
+
+app.get("/api/fans", async (context) => {
+  const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!account) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+
+  const requestedStreamerId = context.req.query("streamerId");
+  const { streamerId, streamers } = await resolveStreamerId(context.env.DB, account, requestedStreamerId);
+  if (!streamerId) {
+    return context.json({ items: [], streamers, activeStreamerId: null });
+  }
+
+  const keyword = context.req.query("q")?.trim();
+  const status = context.req.query("status")?.trim();
+  const query = keyword ? `%${keyword}%` : null;
+  const rows = await context.env.DB.prepare(
+    `SELECT *
+     FROM fans
+     WHERE streamer_id = ?
+       AND (
+         ? IS NULL
+         OR display_name LIKE ?
+         OR douyin_name LIKE ?
+         OR wechat_name LIKE ?
+         OR game_name LIKE ?
+       )
+     ORDER BY updated_at DESC`
+  )
+    .bind(streamerId, query, query, query, query, query)
+    .all<FanRow>();
+
+  const items = rows.results
+    .map(toFan)
+    .filter((fan) => !status || fan.statuses.includes(status));
+
+  return context.json({ items, streamers, activeStreamerId: streamerId });
+});
+
+app.post("/api/fans", async (context) => {
+  const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!account) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+
+  const body = await context.req.json<{
+    streamerId?: string;
+    displayName?: string;
+    douyinName?: string;
+    wechatName?: string;
+    gameName?: string;
+    fanGroupLevel?: string;
+    statuses?: string[];
+    isPublicInBalanceBoard?: boolean;
+    publicName?: string;
+    note?: string;
+  }>();
+  const { streamerId } = await resolveStreamerId(context.env.DB, account, body.streamerId);
+  if (!streamerId) {
+    return context.json(jsonError("没有可用的主播空间。"), 400);
+  }
+
+  const displayName = body.displayName?.trim();
+  if (!displayName) {
+    return context.json(jsonError("请填写粉丝名称。"), 400);
+  }
+
+  const statuses = normalizeStatuses(body.statuses);
+  const timestamp = nowIso();
+  const fanId = createId("fan");
+
+  await context.env.DB.prepare(
+    `INSERT INTO fans
+      (id, streamer_id, display_name, douyin_name, wechat_name, game_name, fan_group_level,
+       statuses_json, is_public_in_balance_board, public_name, note, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(
+      fanId,
+      streamerId,
+      displayName,
+      body.douyinName?.trim() || null,
+      body.wechatName?.trim() || null,
+      body.gameName?.trim() || null,
+      body.fanGroupLevel?.trim() || null,
+      JSON.stringify(statuses),
+      body.isPublicInBalanceBoard ? 1 : 0,
+      body.publicName?.trim() || null,
+      body.note?.trim() || null,
+      timestamp,
+      timestamp
+    )
+    .run();
+
+  await writeAuditLog(
+    context.env.DB,
+    toPublicAccount(account),
+    "create_fan",
+    "fan",
+    fanId,
+    `创建粉丝资料：${displayName}`
+  );
+
+  return context.json({ ok: true, id: fanId });
+});
+
+app.patch("/api/fans/:fanId", async (context) => {
+  const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!account) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+
+  const fanId = context.req.param("fanId");
+  const existing = await context.env.DB.prepare("SELECT * FROM fans WHERE id = ?")
+    .bind(fanId)
+    .first<FanRow>();
+
+  if (!existing) {
+    return context.json(jsonError("粉丝不存在。", 404), 404);
+  }
+
+  const { streamerId } = await resolveStreamerId(context.env.DB, account, existing.streamer_id);
+  if (streamerId !== existing.streamer_id) {
+    return context.json(jsonError("没有权限编辑该粉丝。", 403), 403);
+  }
+
+  const body = await context.req.json<{
+    displayName?: string;
+    douyinName?: string;
+    wechatName?: string;
+    gameName?: string;
+    fanGroupLevel?: string;
+    statuses?: string[];
+    isPublicInBalanceBoard?: boolean;
+    publicName?: string;
+    note?: string;
+  }>();
+
+  const displayName = body.displayName?.trim();
+  if (!displayName) {
+    return context.json(jsonError("请填写粉丝名称。"), 400);
+  }
+
+  const statuses = normalizeStatuses(body.statuses);
+  const timestamp = nowIso();
+
+  await context.env.DB.prepare(
+    `UPDATE fans
+     SET display_name = ?,
+         douyin_name = ?,
+         wechat_name = ?,
+         game_name = ?,
+         fan_group_level = ?,
+         statuses_json = ?,
+         is_public_in_balance_board = ?,
+         public_name = ?,
+         note = ?,
+         updated_at = ?
+     WHERE id = ?`
+  )
+    .bind(
+      displayName,
+      body.douyinName?.trim() || null,
+      body.wechatName?.trim() || null,
+      body.gameName?.trim() || null,
+      body.fanGroupLevel?.trim() || null,
+      JSON.stringify(statuses),
+      body.isPublicInBalanceBoard ? 1 : 0,
+      body.publicName?.trim() || null,
+      body.note?.trim() || null,
+      timestamp,
+      fanId
+    )
+    .run();
+
+  await writeAuditLog(
+    context.env.DB,
+    toPublicAccount(account),
+    "update_fan",
+    "fan",
+    fanId,
+    `编辑粉丝资料：${displayName}`
+  );
+
+  return context.json({ ok: true });
 });
 
 app.notFound((context) => context.json({ error: "Not found" }, 404));
