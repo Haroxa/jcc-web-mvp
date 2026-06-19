@@ -5,7 +5,7 @@ compatibility_date = "2026-06-18"
 [[d1_databases]]
 binding = "DB"
 database_name = "jcc_web_new"
-database_id = "replace-with-cloudflare-d1-id"
+database_id = "b63a038f-b778-40cf-8539-a220f3a8b87c"
 
 [[r2_buckets]]
 binding = "SCREENSHOTS"

@@ -92,6 +92,32 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-19 10:05 接入远程 D1 数据库
+
+#### 摘要
+
+- 创建 Cloudflare D1 数据库 `jcc_web_new`。
+- 将真实 `database_id` 写入 `wrangler.toml` 和 `wrangler.worker.toml`。
+- 执行 `npm run db:migrate:remote`，远程 D1 迁移成功。
+- 上传 Pages secret：`ADMIN_SETUP_TOKEN`。
+- 记录 R2 尚未启用的问题和风险。
+
+#### 说明
+
+Wrangler OAuth 授权成功后，因当前 PowerShell 代理变量仍指向 `127.0.0.1:7890`，先临时切换到 `127.0.0.1:7897` 再执行 Cloudflare 命令。D1 已完成创建和迁移。R2 创建失败，Cloudflare 返回 `code: 10042`，需要先在 Dashboard 启用 R2。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+npm run db:migrate:remote
+git diff --check
+git add .
+git commit -m "接入远程 D1 数据库"
+git push origin main
+```
+
 ### 2026-06-19 09:58 接入 Pages Functions API
 
 #### 摘要
