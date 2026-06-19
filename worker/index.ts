@@ -339,6 +339,26 @@ function ticketAffectsCompetition(type: string) {
   return type === "withdraw" || type === "gift";
 }
 
+async function getFanTicketBalance(db: D1Database, fanId: string) {
+  const row = await db
+    .prepare(
+      `SELECT COALESCE(SUM(
+         CASE
+           WHEN type = 'deposit' THEN amount
+           WHEN type = 'withdraw' THEN -amount
+           WHEN type = 'adjustment' THEN amount
+           ELSE 0
+         END
+       ), 0) AS balance
+       FROM ticket_ledgers
+       WHERE fan_id = ? AND status = 'normal' AND affects_balance = 1`
+    )
+    .bind(fanId)
+    .first<{ balance: number }>();
+
+  return row?.balance ?? 0;
+}
+
 function toTicketLedger(row: TicketLedgerRow) {
   return {
     id: row.id,
@@ -361,25 +381,11 @@ function toTicketLedger(row: TicketLedgerRow) {
 }
 
 async function refreshFanTicketBalance(db: D1Database, fanId: string) {
-  const row = await db
-    .prepare(
-      `SELECT COALESCE(SUM(
-         CASE
-           WHEN type = 'deposit' THEN amount
-           WHEN type = 'withdraw' THEN -amount
-           WHEN type = 'adjustment' THEN amount
-           ELSE 0
-         END
-       ), 0) AS balance
-       FROM ticket_ledgers
-       WHERE fan_id = ? AND status = 'normal' AND affects_balance = 1`
-    )
-    .bind(fanId)
-    .first<{ balance: number }>();
+  const balance = await getFanTicketBalance(db, fanId);
 
   await db
     .prepare("UPDATE fans SET cached_ticket_balance = ?, updated_at = ? WHERE id = ?")
-    .bind(row?.balance ?? 0, nowIso(), fanId)
+    .bind(balance, nowIso(), fanId)
     .run();
 }
 
@@ -1358,6 +1364,12 @@ app.post("/api/tickets", async (context) => {
     return context.json(jsonError("该粉丝已拉黑，不能新增票务记录。"), 400);
   }
 
+  const currentBalance = await getFanTicketBalance(context.env.DB, fan.id);
+  const nextBalance = currentBalance + ticketBalanceDelta(type, amount);
+  if (ticketAffectsBalance(type) && nextBalance < 0) {
+    return context.json(jsonError(`操作后余额会变为 ${nextBalance}，不能低于 0。`), 400);
+  }
+
   const sessionId = body.sessionId?.trim() || null;
   if (sessionId) {
     const session = await context.env.DB.prepare("SELECT id FROM live_sessions WHERE id = ? AND streamer_id = ?")
@@ -1435,6 +1447,12 @@ app.post("/api/tickets/:ledgerId/void", async (context) => {
   }
   if (existing.status === "voided") {
     return context.json(jsonError("该记录已经作废。"), 400);
+  }
+
+  const currentBalance = await getFanTicketBalance(context.env.DB, existing.fan_id);
+  const nextBalance = currentBalance - ticketBalanceDelta(existing.type, existing.amount);
+  if (ticketAffectsBalance(existing.type) && nextBalance < 0) {
+    return context.json(jsonError(`作废后余额会变为 ${nextBalance}，不能低于 0。`), 400);
   }
 
   const body = await context.req.json<{ note?: string }>();
