@@ -391,6 +391,14 @@ function StreamerAccountManager() {
   const [notice, setNotice] = useState("");
   const [generatedPassword, setGeneratedPassword] = useState("");
   const [resetPassword, setResetPassword] = useState("");
+  const [editingStreamerId, setEditingStreamerId] = useState("");
+  const [editForm, setEditForm] = useState({
+    streamerName: "",
+    douyinName: "",
+    username: "",
+    displayName: "",
+    note: ""
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const loadItems = useCallback(async () => {
@@ -478,6 +486,39 @@ function StreamerAccountManager() {
       await loadItems();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "重置失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function startEdit(item: StreamerAccountItem) {
+    setEditingStreamerId(item.streamer.id);
+    setEditForm({
+      streamerName: item.streamer.name,
+      douyinName: item.streamer.douyinName ?? "",
+      username: item.account?.username ?? "",
+      displayName: item.account?.displayName ?? item.streamer.name,
+      note: item.streamer.note ?? ""
+    });
+    setNotice("");
+    setGeneratedPassword("");
+    setResetPassword("");
+  }
+
+  async function saveEdit(streamerId: string) {
+    setIsLoading(true);
+    setNotice("");
+
+    try {
+      await apiRequest<{ ok: boolean }>(`/api/admin/streamer-accounts/${streamerId}`, {
+        method: "PATCH",
+        body: JSON.stringify(editForm)
+      });
+      setNotice("主播账号已更新。");
+      setEditingStreamerId("");
+      await loadItems();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "保存失败");
     } finally {
       setIsLoading(false);
     }
@@ -578,35 +619,99 @@ function StreamerAccountManager() {
           <div className="account-list">
             {items.map((item) => (
               <article className="account-row" key={item.streamer.id}>
-                <div>
-                  <strong>{item.streamer.name}</strong>
-                  <span>
-                    {item.account?.username ?? "未绑定账号"} ·{" "}
-                    {item.account?.status === "disabled" ? "已停用" : "正常"}
-                  </span>
-                  {item.streamer.douyinName ? <span>抖音：{item.streamer.douyinName}</span> : null}
-                </div>
+                {editingStreamerId === item.streamer.id ? (
+                  <div className="edit-grid">
+                    <input
+                      onChange={(event) => setEditForm({ ...editForm, streamerName: event.target.value })}
+                      placeholder="主播名称"
+                      value={editForm.streamerName}
+                    />
+                    <input
+                      onChange={(event) => setEditForm({ ...editForm, username: event.target.value })}
+                      placeholder="登录账号"
+                      value={editForm.username}
+                    />
+                    <input
+                      onChange={(event) => setEditForm({ ...editForm, displayName: event.target.value })}
+                      placeholder="显示名称"
+                      value={editForm.displayName}
+                    />
+                    <input
+                      onChange={(event) => setEditForm({ ...editForm, douyinName: event.target.value })}
+                      placeholder="抖音名"
+                      value={editForm.douyinName}
+                    />
+                    <input
+                      className="edit-note"
+                      onChange={(event) => setEditForm({ ...editForm, note: event.target.value })}
+                      placeholder="备注"
+                      value={editForm.note}
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <strong>{item.streamer.name}</strong>
+                    <span>
+                      {item.account?.username ?? "未绑定账号"} ·{" "}
+                      {item.account?.status === "disabled" ? "已停用" : "正常"}
+                    </span>
+                    {item.account?.displayName ? <span>显示：{item.account.displayName}</span> : null}
+                    {item.streamer.douyinName ? <span>抖音：{item.streamer.douyinName}</span> : null}
+                    {item.streamer.note ? <span>备注：{item.streamer.note}</span> : null}
+                  </div>
+                )}
 
                 {item.account ? (
                   <div className="row-actions">
-                    <button
-                      className="secondary-button"
-                      disabled={isLoading}
-                      onClick={() => resetAccountPassword(item.account!.id, item.account!.username)}
-                      type="button"
-                    >
-                      重置密码
-                    </button>
-                    <button
-                      className="secondary-button"
-                      disabled={isLoading}
-                      onClick={() =>
-                        updateStatus(item.account!.id, item.account!.status === "disabled" ? "active" : "disabled")
-                      }
-                      type="button"
-                    >
-                      {item.account.status === "disabled" ? "启用" : "停用"}
-                    </button>
+                    {editingStreamerId === item.streamer.id ? (
+                      <>
+                        <button
+                          className="secondary-button"
+                          disabled={isLoading}
+                          onClick={() => saveEdit(item.streamer.id)}
+                          type="button"
+                        >
+                          保存
+                        </button>
+                        <button
+                          className="secondary-button"
+                          disabled={isLoading}
+                          onClick={() => setEditingStreamerId("")}
+                          type="button"
+                        >
+                          取消
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="secondary-button"
+                          disabled={isLoading}
+                          onClick={() => startEdit(item)}
+                          type="button"
+                        >
+                          编辑
+                        </button>
+                        <button
+                          className="secondary-button"
+                          disabled={isLoading}
+                          onClick={() => resetAccountPassword(item.account!.id, item.account!.username)}
+                          type="button"
+                        >
+                          重置密码
+                        </button>
+                        <button
+                          className="secondary-button"
+                          disabled={isLoading}
+                          onClick={() =>
+                            updateStatus(item.account!.id, item.account!.status === "disabled" ? "active" : "disabled")
+                          }
+                          type="button"
+                        >
+                          {item.account.status === "disabled" ? "启用" : "停用"}
+                        </button>
+                      </>
+                    )}
                   </div>
                 ) : null}
               </article>

@@ -501,6 +501,87 @@ app.post("/api/admin/streamer-accounts", async (context) => {
   });
 });
 
+app.patch("/api/admin/streamer-accounts/:streamerId", async (context) => {
+  const actor = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!actor) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+  if (actor.role !== "admin") {
+    return context.json(jsonError("只有管理员可以编辑主播账号。", 403), 403);
+  }
+
+  const streamerId = context.req.param("streamerId");
+  const body = await context.req.json<{
+    streamerName?: string;
+    douyinName?: string;
+    note?: string;
+    username?: string;
+    displayName?: string;
+  }>();
+
+  const streamerName = body.streamerName?.trim();
+  const username = body.username?.trim();
+  const displayName = body.displayName?.trim();
+
+  if (!streamerName) {
+    return context.json(jsonError("请填写主播名称。"), 400);
+  }
+  if (!username || username.length < 3) {
+    return context.json(jsonError("登录账号至少需要 3 个字符。"), 400);
+  }
+  if (!displayName) {
+    return context.json(jsonError("请填写显示名称。"), 400);
+  }
+
+  const row = await context.env.DB.prepare(
+    `SELECT streamers.id AS streamer_id, accounts.id AS account_id
+     FROM streamers
+     LEFT JOIN accounts ON accounts.streamer_id = streamers.id AND accounts.role = 'streamer'
+     WHERE streamers.id = ?`
+  )
+    .bind(streamerId)
+    .first<{ streamer_id: string; account_id: string | null }>();
+
+  if (!row) {
+    return context.json(jsonError("主播不存在。", 404), 404);
+  }
+  if (!row.account_id) {
+    return context.json(jsonError("主播未绑定登录账号。"), 400);
+  }
+
+  const usernameOwner = await context.env.DB.prepare("SELECT id FROM accounts WHERE username = ? AND id <> ?")
+    .bind(username, row.account_id)
+    .first<{ id: string }>();
+
+  if (usernameOwner) {
+    return context.json(jsonError("登录账号已存在。"), 409);
+  }
+
+  const timestamp = nowIso();
+  await context.env.DB.batch([
+    context.env.DB.prepare(
+      "UPDATE streamers SET name = ?, douyin_name = ?, note = ?, updated_at = ? WHERE id = ?"
+    ).bind(streamerName, body.douyinName?.trim() || null, body.note?.trim() || null, timestamp, streamerId),
+    context.env.DB.prepare("UPDATE accounts SET username = ?, display_name = ?, updated_at = ? WHERE id = ?").bind(
+      username,
+      displayName,
+      timestamp,
+      row.account_id
+    )
+  ]);
+
+  await writeAuditLog(
+    context.env.DB,
+    toPublicAccount(actor),
+    "update_streamer_account",
+    "streamer",
+    streamerId,
+    `编辑主播账号：${username}`
+  );
+
+  return context.json({ ok: true });
+});
+
 app.patch("/api/admin/accounts/:accountId/status", async (context) => {
   const actor = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
   if (!actor) {

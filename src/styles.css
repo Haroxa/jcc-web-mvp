@@ -384,6 +384,17 @@ h1 {
   gap: 8px;
 }
 
+.edit-grid {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.edit-note {
+  grid-column: 1 / -1;
+}
+
 .secondary-button {
   border: 1px solid #cbd5df;
   border-radius: 8px;
@@ -417,6 +428,14 @@ h1 {
   .settings-grid,
   .work-area {
     display: grid;
+  }
+
+  .account-row {
+    display: grid;
+  }
+
+  .row-actions {
+    justify-content: flex-start;
   }
 
   .metric-grid {
