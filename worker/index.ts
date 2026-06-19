@@ -97,6 +97,38 @@ type TicketLedgerRow = {
   voided_at: string | null;
 };
 
+type RankingSnapshotRow = {
+  id: string;
+  session_id: string;
+  session_title: string;
+  streamer_id: string;
+  title: string;
+  round_no: number;
+  style: string;
+  status: string;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type RankingEntryRow = {
+  id: string;
+  ranking_snapshot_id: string;
+  fan_id: string | null;
+  display_name_at_time: string;
+  douyin_name_at_time: string | null;
+  rank_order: number;
+  gift_diamonds: number;
+  ticket_used: number;
+  manual_adjustment: number;
+  competition_score: number;
+  fan_type_at_time: string;
+  seat_decision: string;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type StreamerOptionRow = {
   id: string;
   name: string;
@@ -377,6 +409,57 @@ function toTicketLedger(row: TicketLedgerRow) {
     createdByName: row.created_by_name,
     createdAt: row.created_at,
     voidedAt: row.voided_at
+  };
+}
+
+function normalizeRankingStyle(value?: string) {
+  const allowed = new Set(["top5", "top7"]);
+  return value && allowed.has(value) ? value : "top7";
+}
+
+function rankingSeatLimit(style: string) {
+  return style === "top5" ? 5 : 7;
+}
+
+function fanTypeFromStatuses(statuses: string[]) {
+  if (statuses.includes("new_fan")) return "new_fan";
+  if (statuses.includes("old_fan")) return "old_fan";
+  return "unknown";
+}
+
+function toRankingSnapshot(row: RankingSnapshotRow) {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    sessionTitle: row.session_title,
+    streamerId: row.streamer_id,
+    title: row.title,
+    roundNo: row.round_no,
+    style: row.style,
+    status: row.status,
+    note: row.note,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function toRankingEntry(row: RankingEntryRow) {
+  return {
+    id: row.id,
+    rankingSnapshotId: row.ranking_snapshot_id,
+    fanId: row.fan_id,
+    displayNameAtTime: row.display_name_at_time,
+    douyinNameAtTime: row.douyin_name_at_time,
+    rankOrder: row.rank_order,
+    giftDiamonds: row.gift_diamonds,
+    ticketUsed: row.ticket_used,
+    manualAdjustment: row.manual_adjustment,
+    competitionScore: row.competition_score,
+    fanTypeAtTime: row.fan_type_at_time,
+    seatDecision: row.seat_decision,
+    note: row.note,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 
@@ -1475,6 +1558,252 @@ app.post("/api/tickets/:ledgerId/void", async (context) => {
     ledgerId,
     `作废票务记录：${existing.type} ${existing.amount}`,
     existing.streamer_id
+  );
+
+  return context.json({ ok: true });
+});
+
+app.get("/api/rankings", async (context) => {
+  const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!account) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+
+  const requestedStreamerId = context.req.query("streamerId");
+  const { streamerId, streamers } = await resolveStreamerId(context.env.DB, account, requestedStreamerId);
+  if (!streamerId) {
+    return context.json({ snapshots: [], entries: [], sessions: [], fans: [], streamers, activeStreamerId: null });
+  }
+
+  const selectedSnapshotId = context.req.query("snapshotId")?.trim() || null;
+  const sessionRows = await context.env.DB.prepare(
+    `SELECT live_sessions.*, streamers.name AS streamer_name
+     FROM live_sessions
+     INNER JOIN streamers ON streamers.id = live_sessions.streamer_id
+     WHERE live_sessions.streamer_id = ? AND live_sessions.status <> 'cancelled'
+     ORDER BY live_sessions.created_at DESC
+     LIMIT 30`
+  )
+    .bind(streamerId)
+    .all<LiveSessionRow>();
+
+  const fanRows = await context.env.DB.prepare("SELECT * FROM fans WHERE streamer_id = ? ORDER BY updated_at DESC")
+    .bind(streamerId)
+    .all<FanRow>();
+
+  const snapshotRows = await context.env.DB.prepare(
+    `SELECT
+       ranking_snapshots.*,
+       live_sessions.title AS session_title,
+       live_sessions.streamer_id AS streamer_id
+     FROM ranking_snapshots
+     INNER JOIN live_sessions ON live_sessions.id = ranking_snapshots.session_id
+     WHERE live_sessions.streamer_id = ?
+     ORDER BY ranking_snapshots.created_at DESC
+     LIMIT 50`
+  )
+    .bind(streamerId)
+    .all<RankingSnapshotRow>();
+
+  const activeSnapshotId =
+    selectedSnapshotId && snapshotRows.results.some((snapshot) => snapshot.id === selectedSnapshotId)
+      ? selectedSnapshotId
+      : snapshotRows.results[0]?.id || null;
+  const entryRows = activeSnapshotId
+    ? await context.env.DB.prepare(
+        `SELECT *
+         FROM ranking_entries
+         WHERE ranking_snapshot_id = ?
+         ORDER BY rank_order ASC, competition_score DESC`
+      )
+        .bind(activeSnapshotId)
+        .all<RankingEntryRow>()
+    : { results: [] as RankingEntryRow[] };
+
+  return context.json({
+    snapshots: snapshotRows.results.map(toRankingSnapshot),
+    entries: entryRows.results.map(toRankingEntry),
+    sessions: sessionRows.results.map(toLiveSession),
+    fans: fanRows.results.map(toFan),
+    streamers,
+    activeStreamerId: streamerId,
+    activeSnapshotId
+  });
+});
+
+app.post("/api/rankings", async (context) => {
+  const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!account) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+
+  const body = await context.req.json<{ streamerId?: string; sessionId?: string; title?: string; style?: string; note?: string }>();
+  const { streamerId } = await resolveStreamerId(context.env.DB, account, body.streamerId);
+  if (!streamerId) {
+    return context.json(jsonError("没有可用的主播空间。"), 400);
+  }
+
+  const session = await context.env.DB.prepare("SELECT * FROM live_sessions WHERE id = ? AND streamer_id = ?")
+    .bind(body.sessionId ?? "", streamerId)
+    .first<LiveSessionRow>();
+  if (!session) {
+    return context.json(jsonError("请选择有效场次。"), 400);
+  }
+
+  const title = body.title?.trim() || `第 ${new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })} 次定榜`;
+  const style = normalizeRankingStyle(body.style);
+  const roundRow = await context.env.DB.prepare("SELECT COALESCE(MAX(round_no), 0) + 1 AS nextRound FROM ranking_snapshots WHERE session_id = ?")
+    .bind(session.id)
+    .first<{ nextRound: number }>();
+  const snapshotId = createId("rank");
+  const timestamp = nowIso();
+
+  await context.env.DB.prepare(
+    `INSERT INTO ranking_snapshots
+      (id, session_id, title, round_no, style, status, note, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?)`
+  )
+    .bind(snapshotId, session.id, title, roundRow?.nextRound ?? 1, style, body.note?.trim() || null, timestamp, timestamp)
+    .run();
+
+  await writeAuditLog(
+    context.env.DB,
+    toPublicAccount(account),
+    "create_ranking_snapshot",
+    "ranking_snapshot",
+    snapshotId,
+    `创建定榜：${title}`,
+    streamerId
+  );
+
+  return context.json({ ok: true, id: snapshotId });
+});
+
+app.post("/api/rankings/:snapshotId/entries", async (context) => {
+  const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!account) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+
+  const snapshotId = context.req.param("snapshotId");
+  const snapshot = await context.env.DB.prepare(
+    `SELECT
+       ranking_snapshots.*,
+       live_sessions.title AS session_title,
+       live_sessions.streamer_id AS streamer_id
+     FROM ranking_snapshots
+     INNER JOIN live_sessions ON live_sessions.id = ranking_snapshots.session_id
+     WHERE ranking_snapshots.id = ?`
+  )
+    .bind(snapshotId)
+    .first<RankingSnapshotRow>();
+  if (!snapshot) {
+    return context.json(jsonError("定榜不存在。", 404), 404);
+  }
+
+  const { streamerId } = await resolveStreamerId(context.env.DB, account, snapshot.streamer_id);
+  if (streamerId !== snapshot.streamer_id) {
+    return context.json(jsonError("没有权限编辑该定榜。", 403), 403);
+  }
+
+  const body = await context.req.json<{
+    fanId?: string;
+    rankOrder?: number;
+    giftDiamonds?: number;
+    ticketUsed?: number;
+    manualAdjustment?: number;
+    note?: string;
+  }>();
+
+  const fan = await context.env.DB.prepare("SELECT * FROM fans WHERE id = ? AND streamer_id = ?")
+    .bind(body.fanId ?? "", streamerId)
+    .first<FanRow>();
+  if (!fan) {
+    return context.json(jsonError("粉丝不存在或不属于当前主播。"), 400);
+  }
+
+  const rankOrder = Number(body.rankOrder);
+  const giftDiamonds = Number(body.giftDiamonds ?? 0);
+  const ticketUsed = Number(body.ticketUsed ?? 0);
+  const manualAdjustment = Number(body.manualAdjustment ?? 0);
+  if (!Number.isInteger(rankOrder) || rankOrder < 1) {
+    return context.json(jsonError("名次必须是大于 0 的整数。"), 400);
+  }
+  if (![giftDiamonds, ticketUsed, manualAdjustment].every(Number.isInteger)) {
+    return context.json(jsonError("礼物钻、取票和调整必须是整数。"), 400);
+  }
+  if (giftDiamonds < 0 || ticketUsed < 0) {
+    return context.json(jsonError("礼物钻和取票不能小于 0。"), 400);
+  }
+
+  const statuses = parseStatuses(fan.statuses_json);
+  const competitionScore = giftDiamonds + ticketUsed + manualAdjustment;
+  const limit = rankingSeatLimit(snapshot.style);
+  const seatDecision = statuses.includes("blacklisted") ? "blocked" : rankOrder <= limit ? "recommended" : "waitlist";
+  const existing = await context.env.DB.prepare("SELECT id FROM ranking_entries WHERE ranking_snapshot_id = ? AND fan_id = ?")
+    .bind(snapshotId, fan.id)
+    .first<{ id: string }>();
+  const timestamp = nowIso();
+
+  if (existing) {
+    await context.env.DB.prepare(
+      `UPDATE ranking_entries
+       SET display_name_at_time = ?, douyin_name_at_time = ?, rank_order = ?, gift_diamonds = ?,
+           ticket_used = ?, manual_adjustment = ?, competition_score = ?, fan_type_at_time = ?,
+           seat_decision = ?, note = ?, updated_at = ?
+       WHERE id = ?`
+    )
+      .bind(
+        fan.display_name,
+        fan.douyin_name,
+        rankOrder,
+        giftDiamonds,
+        ticketUsed,
+        manualAdjustment,
+        competitionScore,
+        fanTypeFromStatuses(statuses),
+        seatDecision,
+        body.note?.trim() || null,
+        timestamp,
+        existing.id
+      )
+      .run();
+  } else {
+    await context.env.DB.prepare(
+      `INSERT INTO ranking_entries
+        (id, ranking_snapshot_id, fan_id, display_name_at_time, douyin_name_at_time, rank_order,
+         gift_diamonds, ticket_used, manual_adjustment, competition_score, fan_type_at_time,
+         seat_decision, note, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        createId("rent"),
+        snapshotId,
+        fan.id,
+        fan.display_name,
+        fan.douyin_name,
+        rankOrder,
+        giftDiamonds,
+        ticketUsed,
+        manualAdjustment,
+        competitionScore,
+        fanTypeFromStatuses(statuses),
+        seatDecision,
+        body.note?.trim() || null,
+        timestamp,
+        timestamp
+      )
+      .run();
+  }
+
+  await writeAuditLog(
+    context.env.DB,
+    toPublicAccount(account),
+    "upsert_ranking_entry",
+    "ranking_snapshot",
+    snapshotId,
+    `录入定榜条目：${fan.display_name} 第 ${rankOrder} 名`,
+    streamerId
   );
 
   return context.json({ ok: true });
