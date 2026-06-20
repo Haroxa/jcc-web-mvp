@@ -94,6 +94,35 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-20 23:58 拆分场次和粉丝管理页面组件
+#### 摘要
+
+- 新增 `src/views/LiveSessionManager.tsx`。
+- 新增 `src/views/FanManager.tsx`。
+- 将直播场次管理、粉丝资料管理及其表单字段组件从 `src/App.tsx` 拆出。
+- `src/App.tsx` 从约 1563 行进一步降到约 1064 行，入口文件继续收敛为登录、导航、首页和设置壳层。
+
+#### 说明
+
+本次仍是结构性拆分，不改变业务行为。场次管理和粉丝资料页面各自独立后，后续调整页面交互或继续拆分设置页时，可以减少单次修改上下文，也降低误触当前场次、榜单和结算流程的风险。
+
+#### 验证结果
+
+- `npm run typecheck` 已通过。
+- `npm run build` 已通过。
+- `git diff --check` 已通过。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "拆分场次和粉丝管理页面组件"
+git push origin main
+```
+
 ### 2026-06-20 23:46 拆分当前场次和票务页面组件
 
 #### 摘要
