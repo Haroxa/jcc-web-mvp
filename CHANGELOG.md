@@ -94,6 +94,36 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-20 23:46 拆分当前场次和票务页面组件
+
+#### 摘要
+
+- 新增 `src/views/CurrentSessionWorkspace.tsx`。
+- 新增 `src/views/TicketManager.tsx`。
+- 将当前场次工作台、流程占位组件和票务流水页面从 `src/App.tsx` 拆出。
+- `src/App.tsx` 从约 2065 行进一步降到约 1563 行。
+
+#### 说明
+
+本次是结构性拆分，不改变业务行为。当前场次工作台已独立承载场次生命周期按钮、阶段导航和当前场次上下文；票务流水页也已独立，后续结算预览和流水修正可以更集中地推进。
+
+#### 验证结果
+
+- `npm run typecheck` 已通过。
+- `npm run build` 已通过。
+- `git diff --check` 已通过。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "拆分当前场次和票务页面组件"
+git push origin main
+```
+
 ### 2026-06-20 23:31 拆分榜单定榜页面组件
 
 #### 摘要
