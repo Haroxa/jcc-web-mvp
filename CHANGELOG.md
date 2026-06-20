@@ -94,6 +94,36 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-20 23:31 拆分榜单定榜页面组件
+
+#### 摘要
+
+- 新增 `src/views/RankingManager.tsx`。
+- 将榜单/定榜页面、实时榜单分区和定榜记录相关组件从 `src/App.tsx` 拆出。
+- 清理 `src/App.tsx` 中不再使用的榜单相关类型、常量和标签导入。
+- `src/App.tsx` 从约 2587 行进一步降到约 2065 行。
+
+#### 说明
+
+本次是结构性拆分，不改变业务行为。榜单/定榜作为当前最活跃页面已独立成文件，后续继续调整方案B布局、冻结结果和名单确认时，可以主要围绕该文件修改。
+
+#### 验证结果
+
+- `npm run typecheck` 已通过。
+- `npm run build` 已通过。
+- `git diff --check` 已通过。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "拆分榜单定榜页面组件"
+git push origin main
+```
+
 ### 2026-06-20 23:13 拆分前端共享类型和工具模块
 
 #### 摘要
