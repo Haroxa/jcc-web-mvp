@@ -93,6 +93,33 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-20 10:18 配置 Cloudflare Token 并完成远程迁移
+
+#### 摘要
+
+- 验证本地隐私文件中的 Cloudflare API Token 有效。
+- 修正 Wrangler 使用的代理端口为 `127.0.0.1:7897`。
+- 配置本机用户环境变量 `CLOUDFLARE_API_TOKEN` 和 `CLOUDFLARE_ACCOUNT_ID`。
+- 配置本机用户环境变量 `http_proxy` / `https_proxy` 为 `http://127.0.0.1:7897`。
+- 成功执行远程 D1 迁移 `0001_ranking_pool.sql`。
+- 复查远程 D1 已无待执行迁移。
+- 同步更新项目状态、问题汇总和风险清单。
+
+#### 说明
+
+这次没有修改业务代码。主要处理 Wrangler 在非交互环境下无法执行远程迁移的问题，并把后续可复用的 Cloudflare 授权信息保存为本机用户环境变量。Token 仍保留在本地隐私文件和环境变量中，没有写入仓库。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run db:migrate:remote
+npx wrangler d1 migrations list jcc_web_new --remote --config wrangler.worker.toml
+git diff --check
+git add .
+git commit -m "记录远程迁移完成"
+git push origin main
+```
+
 ### 2026-06-20 09:49 重构定榜为榜单池流程
 
 #### 摘要
