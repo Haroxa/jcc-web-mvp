@@ -52,6 +52,7 @@ const cards = [
 
 type ViewKey = (typeof navItems)[number]["key"] | "dashboard";
 type WorkspaceTab = "ranking" | "lineup" | "match" | "tickets" | "settlement" | "notes";
+type SessionAction = "start" | "end" | "settle";
 
 type StreamerAccountItem = {
   streamer: {
@@ -798,10 +799,11 @@ function TodayWorkspace({
           </div>
           <ol className="flow-list compact-flow">
             <li>创建或进入当前场次</li>
+            <li>开始直播后维护本场榜单</li>
             <li>录入定榜并查看推荐</li>
             <li>确认名单后进入对局</li>
-            <li>直播中随时处理存票</li>
-            <li>结束后统一结算</li>
+            <li>直播中预记取票和存票</li>
+            <li>结束直播后统一确认结算</li>
           </ol>
         </div>
       </section>
@@ -949,6 +951,7 @@ function CurrentSessionWorkspace({
   const [activeSessionId, setActiveSessionId] = useState(initialSessionId);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("ranking");
   const [notice, setNotice] = useState("");
+  const [isSessionActionLoading, setIsSessionActionLoading] = useState(false);
 
   const loadSessions = useCallback(async () => {
     const result = await apiRequest<{
@@ -989,13 +992,67 @@ function CurrentSessionWorkspace({
 
   const activeSession = sessions.find((session) => session.id === activeSessionId);
   const tabs: Array<{ key: WorkspaceTab; label: string }> = [
-    { key: "ranking", label: "定榜" },
+    { key: "ranking", label: "榜单/定榜" },
     { key: "lineup", label: "名单确认" },
     { key: "match", label: "对局/锁牌" },
-    { key: "tickets", label: "存票" },
     { key: "settlement", label: "结算" },
+    { key: "tickets", label: "存票流水" },
     { key: "notes", label: "截图/备注" }
   ];
+
+  async function runSessionAction(action: SessionAction) {
+    if (!activeSession) return;
+
+    setIsSessionActionLoading(true);
+    setNotice("");
+    try {
+      const result = await apiRequest<{ ok: boolean; ledgerCount?: number }>(`/api/live-sessions/${activeSession.id}/action`, {
+        method: "POST",
+        body: JSON.stringify({ action })
+      });
+      if (action === "start") setNotice("直播已开始。");
+      if (action === "end") setNotice("直播已结束，进入待结算。");
+      if (action === "settle") setNotice(`结算已确认，已生成 ${result.ledgerCount ?? 0} 条正式票务流水。`);
+      await loadSessions();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "场次操作失败");
+    } finally {
+      setIsSessionActionLoading(false);
+    }
+  }
+
+  function renderSessionPrimaryAction() {
+    if (!activeSession) return null;
+    if (activeSession.status === "preparing") {
+      return (
+        <button className="primary-button" disabled={isSessionActionLoading} onClick={() => runSessionAction("start")} type="button">
+          开始直播
+        </button>
+      );
+    }
+    if (activeSession.status === "live") {
+      return (
+        <button className="primary-button" disabled={isSessionActionLoading} onClick={() => runSessionAction("end")} type="button">
+          结束直播
+        </button>
+      );
+    }
+    if (activeSession.status === "pending_settlement") {
+      return (
+        <button className="primary-button" disabled={isSessionActionLoading} onClick={() => runSessionAction("settle")} type="button">
+          确认结算
+        </button>
+      );
+    }
+    if (activeSession.status === "settled") {
+      return (
+        <button className="secondary-button" onClick={() => setActiveTab("settlement")} type="button">
+          查看结算结果
+        </button>
+      );
+    }
+    return null;
+  }
 
   function renderTabContent() {
     if (!activeSession) {
@@ -1076,23 +1133,32 @@ function CurrentSessionWorkspace({
               ? `${activeSession.streamerName || account.displayName} · ${sessionTypeLabel(activeSession.sessionType)} · ${sessionStatusLabel(activeSession.status)}`
               : "创建场次后，定榜、名单、锁牌、存票和结算都会默认挂到当前场次。"}
           </p>
+          {activeSession ? (
+            <p className="session-timeline">
+              开始：{formatDateTime(activeSession.startedAt)} · 结束：{formatDateTime(activeSession.endedAt)} · 结算：
+              {formatDateTime(activeSession.settledAt)}
+            </p>
+          ) : null}
         </div>
-        <label>
-          切换场次
-          <select
-            onChange={(event) => {
-              setActiveSessionId(event.target.value);
-              onSessionChange(event.target.value);
-            }}
-            value={activeSessionId}
-          >
-            {sessions.map((session) => (
-              <option key={session.id} value={session.id}>
-                {session.title} · {sessionStatusLabel(session.status)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="session-context-actions">
+          <label>
+            切换场次
+            <select
+              onChange={(event) => {
+                setActiveSessionId(event.target.value);
+                onSessionChange(event.target.value);
+              }}
+              value={activeSessionId}
+            >
+              {sessions.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {session.title} · {sessionStatusLabel(session.status)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {renderSessionPrimaryAction()}
+        </div>
       </section>
 
       <div className="workspace-tabs">
@@ -1793,6 +1859,7 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
   const countdownLeft = countdownSnapshot?.countdownEndsAt
     ? Math.max(0, Math.floor((new Date(countdownSnapshot.countdownEndsAt).getTime() - nowTick) / 1000))
     : 0;
+  const isBoardReadOnly = session?.status === "settled" || session?.status === "cancelled";
 
   function patchRankingForm(key: keyof RankingForm, value: string) {
     setRankingForm((current) => ({ ...current, [key]: value }));
@@ -1819,6 +1886,10 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
 
   async function saveBoardEntry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isBoardReadOnly) {
+      setNotice("已结算或已取消的场次不能继续编辑本场榜单。");
+      return;
+    }
     if (!activeSessionId) {
       setNotice("请先选择场次。");
       return;
@@ -1841,7 +1912,7 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
           note: entryForm.note
         })
       });
-      setNotice("本场榜单已更新。");
+      setNotice("本场榜单草稿已更新，取票和存票会在确认结算后正式入账。");
       await loadBoard(activeSessionId);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "保存失败");
@@ -1900,7 +1971,7 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
     <section className="ranking-workbench">
       <div className="panel form-panel">
         <div className="panel-header">
-          <h2>本场榜单</h2>
+          <h2>本场榜单草稿</h2>
           <span>{session ? sessionStatusLabel(session.status) : "未选择"}</span>
         </div>
 
@@ -1925,7 +1996,7 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
         <form className="form-panel nested-form" onSubmit={saveBoardEntry}>
           <div className="panel-header">
             <h2>快速编辑</h2>
-            <span>{selectedFan ? `余额 ${selectedFan.cachedTicketBalance}` : "粉丝"}</span>
+            <span>{selectedFan ? `当前余额 ${selectedFan.cachedTicketBalance}` : "粉丝"}</span>
           </div>
 
           <label>
@@ -1960,7 +2031,8 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
 
           <div className="score-preview">
             <span>本场总票：{previewScore}</span>
-            <span>结算后余额预览：{selectedFan ? previewBalance : "未选择粉丝"}</span>
+            <span>预计结算后余额：{selectedFan ? previewBalance : "未选择粉丝"}</span>
+            <span>取票和存票会在确认结算后正式入账。</span>
           </div>
 
           <label>
@@ -1984,7 +2056,7 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
             <textarea onChange={(event) => patchEntryForm("note", event.target.value)} placeholder="例如：临时不玩、补票约定、游戏名" rows={2} value={entryForm.note} />
           </label>
 
-          <button className="primary-button" disabled={isLoading || !activeSessionId || !fans.length} type="submit">
+          <button className="primary-button" disabled={isLoading || isBoardReadOnly || !activeSessionId || !fans.length} type="submit">
             保存本场榜单
           </button>
           {notice ? <p className="notice">{notice}</p> : null}

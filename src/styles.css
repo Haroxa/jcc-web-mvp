@@ -342,6 +342,15 @@ h1 {
   font-size: 14px;
 }
 
+.session-timeline {
+  margin-top: 6px;
+}
+
+.session-context-actions {
+  display: grid;
+  gap: 10px;
+}
+
 .workspace-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -768,6 +777,8 @@ h1 {
 
   .current-session-card .primary-button,
   .quick-actions .secondary-button,
+  .session-context-actions .primary-button,
+  .session-context-actions .secondary-button,
   .workspace-tabs button {
     width: 100%;
   }
