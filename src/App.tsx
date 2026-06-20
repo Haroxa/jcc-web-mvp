@@ -15,19 +15,48 @@ import {
   UserCog,
   Users
 } from "lucide-react";
-
-type Account = {
-  id: string;
-  role: "admin" | "streamer";
-  streamerId: string | null;
-  username: string;
-  displayName: string;
-};
-
-type SetupStatus = {
-  needsAdminSetup: boolean;
-  requiresSetupToken: boolean;
-};
+import { apiRequest } from "./api/client";
+import {
+  cards,
+  emptyFanForm,
+  emptyLiveSessionForm,
+  fanStatusOptions,
+  rankingStyleOptions,
+  sessionStatusOptions,
+  sessionTypeOptions,
+  ticketTypeOptions
+} from "./constants";
+import type {
+  Account,
+  BoardEntryItem,
+  FanForm,
+  FanItem,
+  LiveSessionForm,
+  LiveSessionItem,
+  RankingEntryForm,
+  RankingEntryItem,
+  RankingForm,
+  RankingSnapshotItem,
+  SessionAction,
+  SetupStatus,
+  StreamerAccountItem,
+  StreamerOption,
+  TicketForm,
+  TicketLedgerItem,
+  WorkspaceTab
+} from "./types";
+import { formatDateTime, formatDuration, toInteger } from "./utils/format";
+import {
+  boardStatusLabel,
+  defaultSessionTitle,
+  fanTypeLabel,
+  rankingStatusLabel,
+  rankingStyleLabel,
+  seatDecisionLabel,
+  sessionStatusLabel,
+  sessionTypeLabel,
+  ticketTypeLabel
+} from "./utils/labels";
 
 const navItems = [
   { key: "today", label: "今日工作台", icon: Home, roles: ["streamer"] },
@@ -43,261 +72,8 @@ const navItems = [
   { key: "settings", label: "账号设置", icon: UserCog, roles: ["admin"] }
 ] as const;
 
-const cards = [
-  { title: "当前场次", value: "未开始", note: "创建下午场或晚上场后进入直播流程" },
-  { title: "待结算", value: "0", note: "直播结束后确认存票入账和回退" },
-  { title: "公开存票榜", value: "关闭", note: "游客只看到公开模块和公开字段" },
-  { title: "截图存储", value: "暂缓", note: "R2 需绑定银行卡，当前先不启用云端截图" }
-];
 
 type ViewKey = (typeof navItems)[number]["key"] | "dashboard";
-type WorkspaceTab = "ranking" | "lineup" | "match" | "tickets" | "settlement" | "notes";
-type SessionAction = "start" | "end" | "settle";
-
-type StreamerAccountItem = {
-  streamer: {
-    id: string;
-    name: string;
-    douyinName: string | null;
-    note: string | null;
-    status: string;
-    createdAt: string;
-    updatedAt: string;
-  };
-  account: {
-    id: string;
-    username: string;
-    displayName: string;
-    status: string;
-    lastLoginAt: string | null;
-  } | null;
-};
-
-type StreamerOption = {
-  id: string;
-  name: string;
-};
-
-type FanItem = {
-  id: string;
-  streamerId: string;
-  displayName: string;
-  douyinName: string | null;
-  wechatName: string | null;
-  gameName: string | null;
-  fanGroupLevel: string | null;
-  statuses: string[];
-  isPublicInBalanceBoard: boolean;
-  publicName: string | null;
-  cachedTicketBalance: number;
-  note: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type LiveSessionItem = {
-  id: string;
-  streamerId: string;
-  streamerName: string | null;
-  title: string;
-  sessionType: string;
-  status: string;
-  startedAt: string | null;
-  endedAt: string | null;
-  settledAt: string | null;
-  note: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type LiveSessionForm = {
-  title: string;
-  sessionType: string;
-  status: string;
-  note: string;
-};
-
-type TicketLedgerItem = {
-  id: string;
-  streamerId: string;
-  fanId: string;
-  fanName: string;
-  sessionId: string | null;
-  sessionTitle: string | null;
-  type: string;
-  amount: number;
-  affectsBalance: boolean;
-  affectsCompetition: boolean;
-  status: string;
-  note: string | null;
-  createdByName: string | null;
-  createdAt: string;
-  voidedAt: string | null;
-};
-
-type TicketForm = {
-  fanId: string;
-  sessionId: string;
-  type: string;
-  amount: string;
-  note: string;
-};
-
-type RankingSnapshotItem = {
-  id: string;
-  sessionId: string;
-  sessionTitle: string;
-  streamerId: string;
-  title: string;
-  roundNo: number;
-  style: string;
-  status: string;
-  countdownSeconds: number;
-  countdownStartedAt: string | null;
-  countdownEndsAt: string | null;
-  frozenAt: string | null;
-  note: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type BoardEntryItem = {
-  id: string;
-  sessionId: string;
-  fanId: string;
-  displayName: string;
-  douyinName: string | null;
-  fanStatuses: string[];
-  cachedTicketBalance: number;
-  giftDiamonds: number;
-  ticketUsed: number;
-  ticketDeposit: number;
-  manualAdjustment: number;
-  competitionScore: number;
-  balancePreview: number;
-  status: string;
-  tieOrder: number;
-  note: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type RankingEntryItem = {
-  id: string;
-  rankingSnapshotId: string;
-  fanId: string | null;
-  displayNameAtTime: string;
-  rankOrder: number;
-  giftDiamonds: number;
-  ticketUsed: number;
-  manualAdjustment: number;
-  competitionScore: number;
-  fanTypeAtTime: string;
-  seatDecision: string;
-  note: string | null;
-};
-
-type RankingForm = {
-  sessionId: string;
-  roundNo: string;
-  title: string;
-  style: string;
-  note: string;
-};
-
-type RankingEntryForm = {
-  fanId: string;
-  giftDiamonds: string;
-  ticketUsed: string;
-  depositAmount: string;
-  manualAdjustment: string;
-  status: string;
-  tieOrder: string;
-  note: string;
-};
-
-const emptyLiveSessionForm: LiveSessionForm = {
-  title: "",
-  sessionType: "afternoon",
-  status: "preparing",
-  note: ""
-};
-
-const sessionTypeOptions = [
-  { key: "afternoon", label: "下午场" },
-  { key: "evening", label: "晚上场" },
-  { key: "custom", label: "自定义" }
-];
-
-const sessionStatusOptions = [
-  { key: "preparing", label: "准备中" },
-  { key: "live", label: "进行中" },
-  { key: "pending_settlement", label: "待结算" },
-  { key: "settled", label: "已结算" },
-  { key: "cancelled", label: "已取消" }
-];
-
-const ticketTypeOptions = [
-  { key: "deposit", label: "存票" },
-  { key: "withdraw", label: "取票" },
-  { key: "gift", label: "现刷" },
-  { key: "adjustment", label: "修正" }
-];
-
-const rankingStyleOptions = [
-  { key: "top7", label: "定榜七" },
-  { key: "top5", label: "定榜五" }
-];
-
-type FanForm = {
-  displayName: string;
-  douyinName: string;
-  wechatName: string;
-  gameName: string;
-  fanGroupLevel: string;
-  statuses: string[];
-  isPublicInBalanceBoard: boolean;
-  publicName: string;
-  note: string;
-};
-
-const emptyFanForm: FanForm = {
-  displayName: "",
-  douyinName: "",
-  wechatName: "",
-  gameName: "",
-  fanGroupLevel: "",
-  statuses: [],
-  isPublicInBalanceBoard: false,
-  publicName: "",
-  note: ""
-};
-
-const fanStatusOptions = [
-  { key: "new_fan", label: "新粉" },
-  { key: "old_fan", label: "老粉" },
-  { key: "manager", label: "管理" },
-  { key: "violated", label: "违规" },
-  { key: "blacklisted", label: "拉黑" }
-];
-
-async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers
-    }
-  });
-  const data = (await response.json()) as T & { error?: string };
-
-  if (!response.ok) {
-    throw new Error(data.error ?? "请求失败");
-  }
-
-  return data;
-}
 
 export function App() {
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
@@ -2298,87 +2074,6 @@ function LiveSessionFields({
       </label>
     </>
   );
-}
-
-function defaultSessionTitle(sessionType: string) {
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
-    now.getDate()
-  ).padStart(2, "0")}`;
-  return `${today} ${sessionTypeLabel(sessionType)}`;
-}
-
-function sessionTypeLabel(value: string) {
-  return sessionTypeOptions.find((option) => option.key === value)?.label ?? "自定义";
-}
-
-function sessionStatusLabel(value: string) {
-  return sessionStatusOptions.find((option) => option.key === value)?.label ?? value;
-}
-
-function ticketTypeLabel(value: string) {
-  return ticketTypeOptions.find((option) => option.key === value)?.label ?? value;
-}
-
-function rankingStyleLabel(value: string) {
-  return rankingStyleOptions.find((option) => option.key === value)?.label ?? value;
-}
-
-function seatDecisionLabel(value: string) {
-  if (value === "recommended") return "推荐上车";
-  if (value === "waitlist") return "待定";
-  if (value === "away") return "有事不来";
-  if (value === "blocked") return "禁赛";
-  return value;
-}
-
-function rankingStatusLabel(value: string) {
-  if (value === "draft") return "编辑中";
-  if (value === "countdown") return "倒计时中";
-  if (value === "frozen") return "已冻结";
-  if (value === "confirmed") return "已确认";
-  if (value === "used_for_match") return "已创建对局";
-  if (value === "voided") return "已作废";
-  return value;
-}
-
-function boardStatusLabel(value: string) {
-  if (value === "normal") return "正常竞争";
-  if (value === "new_fan") return "本场新粉";
-  if (value === "away") return "有事不来";
-  if (value === "pending") return "待定";
-  if (value === "blocked") return "禁赛";
-  return value;
-}
-
-function fanTypeLabel(value: string) {
-  if (value === "new_fan") return "新粉";
-  if (value === "old_fan") return "老粉";
-  return "未标记";
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return "未记录";
-  }
-  return new Date(value).toLocaleString("zh-CN", {
-    hour12: false,
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
-function formatDuration(seconds: number) {
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
-}
-
-function toInteger(value: string) {
-  const parsed = Number(value || 0);
-  return Number.isInteger(parsed) ? parsed : 0;
 }
 
 function FanManager({ account }: { account: Account | null }) {

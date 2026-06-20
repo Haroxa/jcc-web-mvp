@@ -94,6 +94,36 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-20 23:13 拆分前端共享类型和工具模块
+
+#### 摘要
+
+- 新增 `src/types.ts`，集中维护前端共享数据类型。
+- 新增 `src/constants.ts`，集中维护表单默认值、状态选项和基础展示卡片。
+- 新增 `src/api/client.ts`，集中维护前端 API 请求封装。
+- 新增 `src/utils/format.ts` 和 `src/utils/labels.ts`，集中维护日期、倒计时、数字和文案标签转换。
+- `src/App.tsx` 删除重复的共享类型、常量和工具函数定义，从约 2855 行降到约 2587 行。
+
+#### 说明
+
+本次是结构性拆分，不改变业务行为。后续建议继续拆分当前场次、榜单/定榜、票务、粉丝和设置等页面组件，并单独拆分 Worker 路由。
+
+#### 验证结果
+
+- `npm run typecheck` 已通过。
+- `npm run build` 已通过。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "拆分前端共享类型和工具模块"
+git push origin main
+```
+
 ### 2026-06-20 18:37 修正本场榜单和场次生命周期流程
 
 #### 摘要
