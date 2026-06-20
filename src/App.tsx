@@ -151,6 +151,9 @@ type RankingSnapshotItem = {
   roundNo: number;
   style: string;
   status: string;
+  countdownStartedAt: string | null;
+  countdownEndsAt: string | null;
+  frozenAt: string | null;
   note: string | null;
   createdAt: string;
   updatedAt: string;
@@ -183,7 +186,9 @@ type RankingEntryForm = {
   rankOrder: string;
   giftDiamonds: string;
   ticketUsed: string;
+  depositAmount: string;
   manualAdjustment: string;
+  seatDecision: string;
   note: string;
 };
 
@@ -1640,46 +1645,58 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
     rankOrder: "",
     giftDiamonds: "",
     ticketUsed: "",
+    depositAmount: "",
     manualAdjustment: "0",
+    seatDecision: "waitlist",
     note: ""
   });
   const [notice, setNotice] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
-  const loadRankings = useCallback(async (streamerId = "", snapshotId = "") => {
-    const params = new URLSearchParams();
-    if (streamerId) params.set("streamerId", streamerId);
-    if (snapshotId) params.set("snapshotId", snapshotId);
+  const loadRankings = useCallback(
+    async (streamerId = "", snapshotId = "") => {
+      const params = new URLSearchParams();
+      if (streamerId) params.set("streamerId", streamerId);
+      if (snapshotId) params.set("snapshotId", snapshotId);
 
-    const result = await apiRequest<{
-      snapshots: RankingSnapshotItem[];
-      entries: RankingEntryItem[];
-      sessions: LiveSessionItem[];
-      fans: FanItem[];
-      streamers: StreamerOption[];
-      activeStreamerId: string | null;
-      activeSnapshotId: string | null;
-    }>(`/api/rankings?${params.toString()}`);
-    setSnapshots(result.snapshots);
-    setEntries(result.entries);
-    setSessions(result.sessions);
-    setFans(result.fans);
-    setStreamers(result.streamers);
-    setActiveStreamerId(result.activeStreamerId ?? "");
-    setActiveSnapshotId(result.activeSnapshotId ?? "");
-    setRankingForm((current) => ({
-      ...current,
-      sessionId: contextSessionId || current.sessionId || result.sessions[0]?.id || ""
-    }));
-    setEntryForm((current) => ({
-      ...current,
-      fanId: current.fanId || result.fans[0]?.id || ""
-    }));
-  }, [contextSessionId]);
+      const result = await apiRequest<{
+        snapshots: RankingSnapshotItem[];
+        entries: RankingEntryItem[];
+        sessions: LiveSessionItem[];
+        fans: FanItem[];
+        streamers: StreamerOption[];
+        activeStreamerId: string | null;
+        activeSnapshotId: string | null;
+      }>(`/api/rankings?${params.toString()}`);
+      setSnapshots(result.snapshots);
+      setEntries(result.entries);
+      setSessions(result.sessions);
+      setFans(result.fans);
+      setStreamers(result.streamers);
+      setActiveStreamerId(result.activeStreamerId ?? "");
+      setActiveSnapshotId(result.activeSnapshotId ?? "");
+      setRankingForm((current) => ({
+        ...current,
+        sessionId: contextSessionId || current.sessionId || result.sessions[0]?.id || ""
+      }));
+      setEntryForm((current) => ({
+        ...current,
+        fanId: current.fanId || result.fans[0]?.id || "",
+        rankOrder: current.rankOrder || String(result.entries.length + 1)
+      }));
+    },
+    [contextSessionId]
+  );
 
   useEffect(() => {
     loadRankings().catch((error) => setNotice(error instanceof Error ? error.message : "加载失败"));
   }, [loadRankings]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (contextSessionId) {
@@ -1699,6 +1716,22 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
     );
   }
 
+  const activeSnapshot = snapshots.find((snapshot) => snapshot.id === activeSnapshotId);
+  const selectedFan = fans.find((fan) => fan.id === entryForm.fanId);
+  const quickGift = toInteger(entryForm.giftDiamonds);
+  const quickTicket = toInteger(entryForm.ticketUsed);
+  const quickDeposit = toInteger(entryForm.depositAmount);
+  const quickAdjustment = toInteger(entryForm.manualAdjustment);
+  const previewScore = quickGift + quickTicket + quickAdjustment;
+  const previewBalance = selectedFan ? selectedFan.cachedTicketBalance + quickDeposit - quickTicket : 0;
+  const isFrozen = activeSnapshot?.status === "frozen";
+  const countdownLeft = activeSnapshot?.countdownEndsAt
+    ? Math.max(0, Math.ceil((new Date(activeSnapshot.countdownEndsAt).getTime() - nowTick) / 1000))
+    : 0;
+  const normalEntries = entries.filter((entry) => entry.seatDecision !== "away" && entry.seatDecision !== "blocked");
+  const awayEntries = entries.filter((entry) => entry.seatDecision === "away");
+  const blockedEntries = entries.filter((entry) => entry.seatDecision === "blocked");
+
   function patchRankingForm(key: keyof RankingForm, value: string) {
     setRankingForm((current) => ({ ...current, [key]: value }));
   }
@@ -1717,7 +1750,7 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
         method: "POST",
         body: JSON.stringify({ ...rankingForm, streamerId: activeStreamerId })
       });
-      setNotice("定榜已创建。");
+      setNotice("本轮榜单池已创建，可以开始录入粉丝票数。");
       setRankingForm((current) => ({ ...current, title: "", note: "" }));
       await loadRankings(activeStreamerId, result.id);
     } catch (error) {
@@ -1727,34 +1760,84 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
     }
   }
 
-  async function saveEntry(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function updateSnapshotStatus(action: "start_countdown" | "freeze" | "reopen") {
     if (!activeSnapshotId) {
-      setNotice("请先创建或选择一个定榜。");
+      setNotice("请先创建或选择一轮榜单。");
       return;
     }
 
     setIsLoading(true);
     setNotice("");
     try {
+      await apiRequest<{ ok: boolean }>(`/api/rankings/${activeSnapshotId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ action, seconds: 180 })
+      });
+      setNotice(
+        action === "start_countdown" ? "三分钟定榜倒计时已开始。" : action === "freeze" ? "榜单已冻结。" : "榜单已重新打开。"
+      );
+      await loadRankings(activeStreamerId, activeSnapshotId);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "操作失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function createRankingTicket(type: string, amount: number, fanId: string, snapshotId: string) {
+    if (!amount) return;
+    await apiRequest<{ ok: boolean }>("/api/tickets", {
+      method: "POST",
+      body: JSON.stringify({
+        streamerId: activeStreamerId,
+        fanId,
+        sessionId: activeSnapshot?.sessionId,
+        rankingSnapshotId: snapshotId,
+        type,
+        amount,
+        note: `本轮榜单：${activeSnapshot?.title || ""}${entryForm.note ? `；${entryForm.note}` : ""}`
+      })
+    });
+  }
+
+  async function saveEntry(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeSnapshotId || !activeSnapshot) {
+      setNotice("请先创建或选择一轮榜单。");
+      return;
+    }
+    if (isFrozen) {
+      setNotice("榜单已冻结，不能继续录入。");
+      return;
+    }
+
+    setIsLoading(true);
+    setNotice("");
+    try {
+      await createRankingTicket("deposit", quickDeposit, entryForm.fanId, activeSnapshotId);
+      await createRankingTicket("withdraw", quickTicket, entryForm.fanId, activeSnapshotId);
+      await createRankingTicket("gift", quickGift, entryForm.fanId, activeSnapshotId);
       await apiRequest<{ ok: boolean }>(`/api/rankings/${activeSnapshotId}/entries`, {
         method: "POST",
         body: JSON.stringify({
           fanId: entryForm.fanId,
           rankOrder: Number(entryForm.rankOrder),
-          giftDiamonds: Number(entryForm.giftDiamonds || 0),
-          ticketUsed: Number(entryForm.ticketUsed || 0),
-          manualAdjustment: Number(entryForm.manualAdjustment || 0),
+          giftDiamonds: quickGift,
+          ticketUsed: quickTicket,
+          manualAdjustment: quickAdjustment,
+          seatDecision: entryForm.seatDecision,
           note: entryForm.note
         })
       });
-      setNotice("榜单条目已保存。");
+      setNotice("榜单池已更新，排序和推荐名单已重算。");
       setEntryForm((current) => ({
         ...current,
         rankOrder: "",
         giftDiamonds: "",
         ticketUsed: "",
+        depositAmount: "",
         manualAdjustment: "0",
+        seatDecision: "waitlist",
         note: ""
       }));
       await loadRankings(activeStreamerId, activeSnapshotId);
@@ -1765,14 +1848,12 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
     }
   }
 
-  const activeSnapshot = snapshots.find((snapshot) => snapshot.id === activeSnapshotId);
-
   return (
-    <section className="settings-grid">
+    <section className="ranking-workbench">
       <div className="panel form-panel">
         <form className="form-panel nested-form" onSubmit={createRanking}>
           <div className="panel-header">
-            <h2>创建定榜</h2>
+            <h2>本轮榜单池</h2>
             <span>{account.role === "admin" ? "可代操作" : "主播端"}</span>
           </div>
 
@@ -1810,7 +1891,7 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
           </label>
 
           <label>
-            定榜类型
+            榜单规则
             <select onChange={(event) => patchRankingForm("style", event.target.value)} value={rankingForm.style}>
               {rankingStyleOptions.map((option) => (
                 <option key={option.key} value={option.key}>
@@ -1821,40 +1902,35 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
           </label>
 
           <label>
-            定榜标题
+            榜单名称
             <input onChange={(event) => patchRankingForm("title", event.target.value)} placeholder="留空自动生成" value={rankingForm.title} />
           </label>
 
-          <label>
-            备注
-            <textarea onChange={(event) => patchRankingForm("note", event.target.value)} placeholder="可选" rows={2} value={rankingForm.note} />
-          </label>
-
           <button className="primary-button" disabled={isLoading || !sessions.length} type="submit">
-            {isLoading ? "处理中..." : "创建定榜"}
+            {isLoading ? "处理中..." : "开始本轮榜单"}
           </button>
         </form>
 
         <form className="form-panel nested-form" onSubmit={saveEntry}>
           <div className="panel-header">
-            <h2>录入榜单</h2>
-            <span>{activeSnapshot ? rankingStyleLabel(activeSnapshot.style) : "未选择"}</span>
+            <h2>快速录入</h2>
+            <span>{activeSnapshot ? rankingStatusLabel(activeSnapshot.status) : "未选择"}</span>
           </div>
 
           <label>
-            当前定榜
+            当前榜单
             <select
               onChange={(event) => {
                 setActiveSnapshotId(event.target.value);
                 loadRankings(activeStreamerId, event.target.value).catch((error) =>
-                  setNotice(error instanceof Error ? error.message : "切换定榜失败")
+                  setNotice(error instanceof Error ? error.message : "切换榜单失败")
                 );
               }}
               value={activeSnapshotId}
             >
               {snapshots.map((snapshot) => (
                 <option key={snapshot.id} value={snapshot.id}>
-                  {snapshot.sessionTitle} · 第 {snapshot.roundNo} 次 · {snapshot.title}
+                  {snapshot.sessionTitle} · 第 {snapshot.roundNo} 轮 · {snapshot.title}
                 </option>
               ))}
             </select>
@@ -1865,76 +1941,163 @@ function RankingManager({ account, contextSessionId = "" }: { account: Account |
             <select onChange={(event) => patchEntryForm("fanId", event.target.value)} required value={entryForm.fanId}>
               {fans.map((fan) => (
                 <option key={fan.id} value={fan.id}>
-                  {fan.displayName}
+                  {fan.displayName}（余额 {fan.cachedTicketBalance}）
                 </option>
               ))}
             </select>
           </label>
 
+          <div className="score-grid">
+            <label>
+              现刷
+              <input inputMode="numeric" onChange={(event) => patchEntryForm("giftDiamonds", event.target.value)} placeholder="0" value={entryForm.giftDiamonds} />
+            </label>
+            <label>
+              取票
+              <input inputMode="numeric" onChange={(event) => patchEntryForm("ticketUsed", event.target.value)} placeholder="0" value={entryForm.ticketUsed} />
+            </label>
+            <label>
+              存票
+              <input inputMode="numeric" onChange={(event) => patchEntryForm("depositAmount", event.target.value)} placeholder="0" value={entryForm.depositAmount} />
+            </label>
+            <label>
+              调整
+              <input inputMode="numeric" onChange={(event) => patchEntryForm("manualAdjustment", event.target.value)} value={entryForm.manualAdjustment} />
+            </label>
+          </div>
+
+          <div className="score-preview">
+            <span>本轮总票数：{previewScore}</span>
+            <span>结算后余额预览：{selectedFan ? previewBalance : "未选择粉丝"}</span>
+          </div>
+
           <label>
-            榜上顺序
+            同票顺序
             <input
               inputMode="numeric"
               onChange={(event) => patchEntryForm("rankOrder", event.target.value)}
-              placeholder="总票相同时按这个顺序"
+              placeholder="同票时按这个顺序"
               required
               value={entryForm.rankOrder}
             />
           </label>
+
           <label>
-            礼物钻
-            <input inputMode="numeric" onChange={(event) => patchEntryForm("giftDiamonds", event.target.value)} placeholder="0" value={entryForm.giftDiamonds} />
-          </label>
-          <label>
-            取票
-            <input inputMode="numeric" onChange={(event) => patchEntryForm("ticketUsed", event.target.value)} placeholder="0" value={entryForm.ticketUsed} />
-          </label>
-          <label>
-            调整
-            <input inputMode="numeric" onChange={(event) => patchEntryForm("manualAdjustment", event.target.value)} value={entryForm.manualAdjustment} />
-          </label>
-          <label>
-            备注
-            <textarea onChange={(event) => patchEntryForm("note", event.target.value)} placeholder="可选" rows={2} value={entryForm.note} />
+            本轮状态
+            <select onChange={(event) => patchEntryForm("seatDecision", event.target.value)} value={entryForm.seatDecision}>
+              <option value="waitlist">正常竞争</option>
+              <option value="away">有事不来</option>
+            </select>
           </label>
 
-          <button className="primary-button" disabled={isLoading || !activeSnapshotId || !fans.length} type="submit">
-            保存条目
+          <label>
+            备注
+            <textarea onChange={(event) => patchEntryForm("note", event.target.value)} placeholder="例如：临时不玩、补票约定、游戏名" rows={2} value={entryForm.note} />
+          </label>
+
+          <button className="primary-button" disabled={isLoading || isFrozen || !activeSnapshotId || !fans.length} type="submit">
+            保存并更新榜单
           </button>
           {notice ? <p className="notice">{notice}</p> : null}
         </form>
       </div>
 
-      <section className="panel list-panel">
+      <section className="panel ranking-board-panel">
         <div className="panel-header">
-          <h2>推荐名单</h2>
+          <h2>实时榜单</h2>
           <span>{entries.length}</span>
         </div>
 
-        {!activeSnapshot ? (
-          <p className="muted">请先创建定榜。</p>
-        ) : entries.length === 0 ? (
-          <p className="muted">当前定榜还没有榜单条目。</p>
-        ) : (
-          <div className="account-list">
-            {entries.map((entry) => (
-              <article className="account-row fan-row" key={entry.id}>
-                <div>
-                  <strong>
-                    #{entry.rankOrder} {entry.displayNameAtTime} · {seatDecisionLabel(entry.seatDecision)}
-                  </strong>
-                  <span>
-                    总票数：{entry.competitionScore} = 礼物 {entry.giftDiamonds} + 取票 {entry.ticketUsed} + 调整 {entry.manualAdjustment}
-                  </span>
-                  <span>粉丝类型：{fanTypeLabel(entry.fanTypeAtTime)}</span>
-                  {entry.note ? <span>备注：{entry.note}</span> : null}
-                </div>
-              </article>
-            ))}
+        {activeSnapshot ? (
+          <div className="ranking-control">
+            <div>
+              <strong>
+                第 {activeSnapshot.roundNo} 轮 · {rankingStyleLabel(activeSnapshot.style)}
+              </strong>
+              <span>
+                {rankingStatusLabel(activeSnapshot.status)}
+                {activeSnapshot.status === "countdown" ? ` · 剩余 ${formatDuration(countdownLeft)}` : ""}
+                {activeSnapshot.frozenAt ? ` · 冻结 ${formatDateTime(activeSnapshot.frozenAt)}` : ""}
+              </span>
+            </div>
+            <div className="row-actions">
+              <button
+                className="secondary-button"
+                disabled={isLoading || isFrozen}
+                onClick={() => updateSnapshotStatus("start_countdown")}
+                type="button"
+              >
+                开始三分钟
+              </button>
+              <button
+                className="secondary-button"
+                disabled={isLoading || isFrozen}
+                onClick={() => updateSnapshotStatus("freeze")}
+                type="button"
+              >
+                冻结榜单
+              </button>
+              <button
+                className="secondary-button"
+                disabled={isLoading || !isFrozen}
+                onClick={() => updateSnapshotStatus("reopen")}
+                type="button"
+              >
+                重新打开
+              </button>
+            </div>
           </div>
+        ) : (
+          <p className="muted">请先开始本轮榜单。</p>
         )}
+
+        <RankingEntryGroup title="正常竞争榜" entries={normalEntries} />
+        <RankingEntryGroup title="有事不来" entries={awayEntries} emptyText="没有标记有事不来的粉丝。" />
+        <RankingEntryGroup title="禁赛/拉黑" entries={blockedEntries} emptyText="没有禁赛粉丝。" />
       </section>
     </section>
+  );
+}
+
+function RankingEntryGroup({
+  title,
+  entries,
+  emptyText = "当前分区还没有粉丝。"
+}: {
+  title: string;
+  entries: RankingEntryItem[];
+  emptyText?: string;
+}) {
+  return (
+    <div className="ranking-group">
+      <div className="ranking-group-title">
+        <strong>{title}</strong>
+        <span>{entries.length}</span>
+      </div>
+      {entries.length === 0 ? (
+        <p className="muted">{emptyText}</p>
+      ) : (
+        <div className="account-list">
+          {entries.map((entry, index) => (
+            <article className="account-row fan-row ranking-row" key={entry.id}>
+              <div>
+                <strong>
+                  #{index + 1} {entry.displayNameAtTime} · {seatDecisionLabel(entry.seatDecision)}
+                </strong>
+                <span>
+                  总票数：{entry.competitionScore} = 现刷 {entry.giftDiamonds} + 取票 {entry.ticketUsed} + 调整{" "}
+                  {entry.manualAdjustment}
+                </span>
+                <span>
+                  粉丝类型：{fanTypeLabel(entry.fanTypeAtTime)} · 同票顺序：{entry.rankOrder}
+                </span>
+                {entry.note ? <span>备注：{entry.note}</span> : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2010,7 +2173,18 @@ function rankingStyleLabel(value: string) {
 function seatDecisionLabel(value: string) {
   if (value === "recommended") return "推荐上车";
   if (value === "waitlist") return "待定";
+  if (value === "away") return "有事不来";
   if (value === "blocked") return "禁赛";
+  return value;
+}
+
+function rankingStatusLabel(value: string) {
+  if (value === "draft") return "编辑中";
+  if (value === "countdown") return "倒计时中";
+  if (value === "frozen") return "已冻结";
+  if (value === "confirmed") return "已确认";
+  if (value === "used_for_match") return "已创建对局";
+  if (value === "voided") return "已作废";
   return value;
 }
 
@@ -2031,6 +2205,17 @@ function formatDateTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+function formatDuration(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+}
+
+function toInteger(value: string) {
+  const parsed = Number(value || 0);
+  return Number.isInteger(parsed) ? parsed : 0;
 }
 
 function FanManager({ account }: { account: Account | null }) {

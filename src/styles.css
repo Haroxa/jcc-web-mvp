@@ -381,6 +381,80 @@ h1 {
   gap: 18px;
 }
 
+.ranking-workbench {
+  display: grid;
+  grid-template-columns: minmax(340px, 0.72fr) minmax(0, 1.28fr);
+  gap: 18px;
+}
+
+.ranking-board-panel {
+  min-height: 520px;
+}
+
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.score-preview {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #cbd5df;
+  border-radius: 8px;
+  background: #f8fbfd;
+  color: #1f4f7a;
+  font-weight: 700;
+  padding: 10px 12px;
+}
+
+.ranking-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #f8fbfd;
+  margin-bottom: 14px;
+  padding: 14px;
+}
+
+.ranking-control div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.ranking-control span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ranking-group {
+  border-top: 1px solid #d8e0e8;
+  padding-top: 14px;
+  margin-top: 14px;
+}
+
+.ranking-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ranking-group-title span {
+  border-radius: 999px;
+  background: #e8f1f8;
+  color: #23537a;
+  font-size: 12px;
+  padding: 4px 9px;
+}
+
+.ranking-row strong {
+  font-size: 17px;
+}
+
 .panel {
   padding: 18px;
 }
@@ -608,6 +682,7 @@ h1 {
   }
 
   .page-header,
+  .ranking-workbench,
   .session-context,
   .settings-grid,
   .work-area {
