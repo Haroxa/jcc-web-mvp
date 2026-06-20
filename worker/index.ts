@@ -106,6 +106,7 @@ type RankingSnapshotRow = {
   round_no: number;
   style: string;
   status: string;
+  countdown_seconds: number;
   countdown_started_at: string | null;
   countdown_ends_at: string | null;
   frozen_at: string | null;
@@ -127,6 +128,25 @@ type RankingEntryRow = {
   competition_score: number;
   fan_type_at_time: string;
   seat_decision: string;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type LiveSessionBoardEntryRow = {
+  id: string;
+  session_id: string;
+  fan_id: string;
+  display_name: string;
+  douyin_name: string | null;
+  statuses_json: string;
+  cached_ticket_balance: number;
+  gift_diamonds: number;
+  ticket_used: number;
+  ticket_deposit: number;
+  manual_adjustment: number;
+  status: string;
+  tie_order: number;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -429,6 +449,26 @@ function normalizeSeatDecision(value?: string) {
   return value && allowed.has(value) ? value : "waitlist";
 }
 
+function normalizeBoardStatus(value?: string) {
+  const allowed = new Set(["normal", "new_fan", "away", "pending", "blocked"]);
+  return value && allowed.has(value) ? value : "normal";
+}
+
+function boardCompetitionScore(row: {
+  gift_diamonds: number;
+  ticket_used: number;
+  ticket_deposit: number;
+  manual_adjustment: number;
+}) {
+  return row.gift_diamonds + row.ticket_used - row.ticket_deposit + row.manual_adjustment;
+}
+
+function boardStatusToSeatDecision(status: string) {
+  if (status === "away") return "away";
+  if (status === "blocked") return "blocked";
+  return "waitlist";
+}
+
 function fanTypeFromStatuses(statuses: string[]) {
   if (statuses.includes("new_fan")) return "new_fan";
   if (statuses.includes("old_fan")) return "old_fan";
@@ -445,6 +485,7 @@ function toRankingSnapshot(row: RankingSnapshotRow) {
     roundNo: row.round_no,
     style: row.style,
     status: row.status,
+    countdownSeconds: row.countdown_seconds,
     countdownStartedAt: row.countdown_started_at,
     countdownEndsAt: row.countdown_ends_at,
     frozenAt: row.frozen_at,
@@ -468,6 +509,30 @@ function toRankingEntry(row: RankingEntryRow) {
     competitionScore: row.competition_score,
     fanTypeAtTime: row.fan_type_at_time,
     seatDecision: row.seat_decision,
+    note: row.note,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function toBoardEntry(row: LiveSessionBoardEntryRow) {
+  const score = boardCompetitionScore(row);
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    fanId: row.fan_id,
+    displayName: row.display_name,
+    douyinName: row.douyin_name,
+    fanStatuses: parseStatuses(row.statuses_json),
+    cachedTicketBalance: row.cached_ticket_balance,
+    giftDiamonds: row.gift_diamonds,
+    ticketUsed: row.ticket_used,
+    ticketDeposit: row.ticket_deposit,
+    manualAdjustment: row.manual_adjustment,
+    competitionScore: score,
+    balancePreview: row.cached_ticket_balance - row.ticket_used + row.ticket_deposit,
+    status: row.status,
+    tieOrder: row.tie_order,
     note: row.note,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -511,6 +576,103 @@ async function recomputeRankingDecisions(db: D1Database, snapshotId: string, sty
 
   if (updates.length > 0) {
     await db.batch(updates);
+  }
+}
+
+async function replaceRankingEntriesFromBoard(db: D1Database, snapshot: RankingSnapshotRow) {
+  const boardRows = await db
+    .prepare(
+      `SELECT
+         live_session_board_entries.*,
+         fans.display_name,
+         fans.douyin_name,
+         fans.statuses_json,
+         fans.cached_ticket_balance
+       FROM live_session_board_entries
+       INNER JOIN fans ON fans.id = live_session_board_entries.fan_id
+       WHERE live_session_board_entries.session_id = ?
+       ORDER BY
+         CASE live_session_board_entries.status
+           WHEN 'normal' THEN 1
+           WHEN 'new_fan' THEN 2
+           WHEN 'pending' THEN 3
+           WHEN 'away' THEN 4
+           WHEN 'blocked' THEN 5
+           ELSE 6
+         END,
+         (live_session_board_entries.gift_diamonds + live_session_board_entries.ticket_used
+          - live_session_board_entries.ticket_deposit + live_session_board_entries.manual_adjustment) DESC,
+         live_session_board_entries.tie_order ASC,
+         live_session_board_entries.updated_at ASC`
+    )
+    .bind(snapshot.session_id)
+    .all<LiveSessionBoardEntryRow>();
+
+  const timestamp = nowIso();
+  await db.prepare("DELETE FROM ranking_entries WHERE ranking_snapshot_id = ?").bind(snapshot.id).run();
+
+  let rankOrder = 1;
+  const inserts = boardRows.results.map((entry) => {
+    const statuses = parseStatuses(entry.statuses_json);
+    const fanType = entry.status === "new_fan" || statuses.includes("new_fan") ? "new_fan" : fanTypeFromStatuses(statuses);
+    const score = boardCompetitionScore(entry);
+    return db
+      .prepare(
+        `INSERT INTO ranking_entries
+          (id, ranking_snapshot_id, fan_id, display_name_at_time, douyin_name_at_time, rank_order,
+           gift_diamonds, ticket_used, manual_adjustment, competition_score, fan_type_at_time,
+           seat_decision, note, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        createId("rent"),
+        snapshot.id,
+        entry.fan_id,
+        entry.display_name,
+        entry.douyin_name,
+        rankOrder++,
+        entry.gift_diamonds,
+        entry.ticket_used,
+        entry.manual_adjustment - entry.ticket_deposit,
+        score,
+        fanType,
+        boardStatusToSeatDecision(entry.status),
+        entry.note,
+        timestamp,
+        timestamp
+      );
+  });
+
+  if (inserts.length > 0) {
+    await db.batch(inserts);
+  }
+  await recomputeRankingDecisions(db, snapshot.id, snapshot.style);
+}
+
+async function autoFreezeDueRankings(db: D1Database, sessionId: string) {
+  const timestamp = nowIso();
+  const dueSnapshots = await db
+    .prepare(
+      `SELECT
+         ranking_snapshots.*,
+         live_sessions.title AS session_title,
+         live_sessions.streamer_id AS streamer_id
+       FROM ranking_snapshots
+       INNER JOIN live_sessions ON live_sessions.id = ranking_snapshots.session_id
+       WHERE ranking_snapshots.session_id = ?
+         AND ranking_snapshots.status = 'countdown'
+         AND ranking_snapshots.countdown_ends_at IS NOT NULL
+         AND ranking_snapshots.countdown_ends_at <= ?`
+    )
+    .bind(sessionId, timestamp)
+    .all<RankingSnapshotRow>();
+
+  for (const snapshot of dueSnapshots.results) {
+    await replaceRankingEntriesFromBoard(db, snapshot);
+    await db
+      .prepare("UPDATE ranking_snapshots SET status = 'frozen', frozen_at = ?, updated_at = ? WHERE id = ?")
+      .bind(timestamp, timestamp, snapshot.id)
+      .run();
   }
 }
 
@@ -1631,6 +1793,269 @@ app.post("/api/tickets/:ledgerId/void", async (context) => {
   return context.json({ ok: true });
 });
 
+app.get("/api/session-board", async (context) => {
+  const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!account) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+
+  const sessionId = context.req.query("sessionId")?.trim();
+  if (!sessionId) {
+    return context.json(jsonError("请选择场次。"), 400);
+  }
+
+  const session = await context.env.DB.prepare(
+    `SELECT live_sessions.*, streamers.name AS streamer_name
+     FROM live_sessions
+     INNER JOIN streamers ON streamers.id = live_sessions.streamer_id
+     WHERE live_sessions.id = ?`
+  )
+    .bind(sessionId)
+    .first<LiveSessionRow>();
+  if (!session) {
+    return context.json(jsonError("场次不存在。", 404), 404);
+  }
+
+  const { streamerId } = await resolveStreamerId(context.env.DB, account, session.streamer_id);
+  if (streamerId !== session.streamer_id) {
+    return context.json(jsonError("没有权限查看该场次。", 403), 403);
+  }
+
+  await autoFreezeDueRankings(context.env.DB, sessionId);
+
+  const entries = await context.env.DB.prepare(
+    `SELECT
+       live_session_board_entries.*,
+       fans.display_name,
+       fans.douyin_name,
+       fans.statuses_json,
+       fans.cached_ticket_balance
+     FROM live_session_board_entries
+     INNER JOIN fans ON fans.id = live_session_board_entries.fan_id
+     WHERE live_session_board_entries.session_id = ?
+     ORDER BY
+       CASE live_session_board_entries.status
+         WHEN 'normal' THEN 1
+         WHEN 'new_fan' THEN 2
+         WHEN 'pending' THEN 3
+         WHEN 'away' THEN 4
+         WHEN 'blocked' THEN 5
+         ELSE 6
+       END,
+       (live_session_board_entries.gift_diamonds + live_session_board_entries.ticket_used
+        - live_session_board_entries.ticket_deposit + live_session_board_entries.manual_adjustment) DESC,
+       live_session_board_entries.tie_order ASC,
+       live_session_board_entries.updated_at ASC`
+  )
+    .bind(sessionId)
+    .all<LiveSessionBoardEntryRow>();
+
+  const fans = await context.env.DB.prepare("SELECT * FROM fans WHERE streamer_id = ? ORDER BY updated_at DESC")
+    .bind(streamerId)
+    .all<FanRow>();
+
+  const snapshots = await context.env.DB.prepare(
+    `SELECT
+       ranking_snapshots.*,
+       live_sessions.title AS session_title,
+       live_sessions.streamer_id AS streamer_id
+     FROM ranking_snapshots
+     INNER JOIN live_sessions ON live_sessions.id = ranking_snapshots.session_id
+     WHERE ranking_snapshots.session_id = ?
+     ORDER BY ranking_snapshots.round_no DESC, ranking_snapshots.created_at DESC`
+  )
+    .bind(sessionId)
+    .all<RankingSnapshotRow>();
+
+  return context.json({
+    session: toLiveSession(session),
+    entries: entries.results.map(toBoardEntry),
+    fans: fans.results.map(toFan),
+    snapshots: snapshots.results.map(toRankingSnapshot)
+  });
+});
+
+app.post("/api/session-board/entries", async (context) => {
+  const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+  if (!account) {
+    return context.json(jsonError("请先登录。", 401), 401);
+  }
+
+  const body = await context.req.json<{
+    sessionId?: string;
+    fanId?: string;
+    giftDiamonds?: number;
+    ticketUsed?: number;
+    ticketDeposit?: number;
+    manualAdjustment?: number;
+    status?: string;
+    tieOrder?: number;
+    note?: string;
+  }>();
+
+  const session = await context.env.DB.prepare("SELECT * FROM live_sessions WHERE id = ?")
+    .bind(body.sessionId ?? "")
+    .first<LiveSessionRow>();
+  if (!session) {
+    return context.json(jsonError("场次不存在。", 404), 404);
+  }
+
+  const { streamerId } = await resolveStreamerId(context.env.DB, account, session.streamer_id);
+  if (streamerId !== session.streamer_id) {
+    return context.json(jsonError("没有权限编辑该场次。", 403), 403);
+  }
+
+  const fan = await context.env.DB.prepare("SELECT * FROM fans WHERE id = ? AND streamer_id = ?")
+    .bind(body.fanId ?? "", streamerId)
+    .first<FanRow>();
+  if (!fan) {
+    return context.json(jsonError("粉丝不存在或不属于当前主播。"), 400);
+  }
+
+  const giftDiamonds = Number(body.giftDiamonds ?? 0);
+  const ticketUsed = Number(body.ticketUsed ?? 0);
+  const ticketDeposit = Number(body.ticketDeposit ?? 0);
+  const manualAdjustment = Number(body.manualAdjustment ?? 0);
+  const tieOrder = Number(body.tieOrder ?? 0);
+  if (![giftDiamonds, ticketUsed, ticketDeposit, manualAdjustment, tieOrder].every(Number.isInteger)) {
+    return context.json(jsonError("票数字段必须是整数。"), 400);
+  }
+  if (giftDiamonds < 0 || ticketUsed < 0 || ticketDeposit < 0) {
+    return context.json(jsonError("礼物钻、取票和存票不能小于 0。"), 400);
+  }
+
+  const existing = await context.env.DB.prepare(
+    "SELECT * FROM live_session_board_entries WHERE session_id = ? AND fan_id = ?"
+  )
+    .bind(session.id, fan.id)
+    .first<{
+      id: string;
+      gift_diamonds: number;
+      ticket_used: number;
+      ticket_deposit: number;
+      manual_adjustment: number;
+    }>();
+  const oldTicketUsed = existing?.ticket_used ?? 0;
+  const oldTicketDeposit = existing?.ticket_deposit ?? 0;
+  const withdrawDelta = ticketUsed - oldTicketUsed;
+  const depositDelta = ticketDeposit - oldTicketDeposit;
+  const status = normalizeBoardStatus(body.status);
+  const fanStatuses = parseStatuses(fan.statuses_json);
+  const finalStatus = fanStatuses.includes("blacklisted") ? "blocked" : status;
+  const currentBalance = await getFanTicketBalance(context.env.DB, fan.id);
+  const nextBalance = currentBalance - withdrawDelta + depositDelta;
+  if (nextBalance < 0) {
+    return context.json(jsonError(`结算后余额会变为 ${nextBalance}，不能低于 0。`), 400);
+  }
+  const timestamp = nowIso();
+
+  if (existing) {
+    await context.env.DB.prepare(
+      `UPDATE live_session_board_entries
+       SET gift_diamonds = ?, ticket_used = ?, ticket_deposit = ?, manual_adjustment = ?,
+           status = ?, tie_order = ?, note = ?, updated_at = ?
+       WHERE id = ?`
+    )
+      .bind(
+        giftDiamonds,
+        ticketUsed,
+        ticketDeposit,
+        manualAdjustment,
+        finalStatus,
+        tieOrder,
+        body.note?.trim() || null,
+        timestamp,
+        existing.id
+      )
+      .run();
+  } else {
+    await context.env.DB.prepare(
+      `INSERT INTO live_session_board_entries
+        (id, session_id, fan_id, gift_diamonds, ticket_used, ticket_deposit, manual_adjustment,
+         status, tie_order, note, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        createId("board"),
+        session.id,
+        fan.id,
+        giftDiamonds,
+        ticketUsed,
+        ticketDeposit,
+        manualAdjustment,
+        finalStatus,
+        tieOrder,
+        body.note?.trim() || null,
+        timestamp,
+        timestamp
+      )
+      .run();
+  }
+
+  const ticketWrites = [];
+
+  if (withdrawDelta !== 0) {
+    ticketWrites.push(
+      context.env.DB
+        .prepare(
+          `INSERT INTO ticket_ledgers
+            (id, streamer_id, fan_id, session_id, type, amount, affects_balance, affects_competition,
+             status, note, created_by, created_at)
+           VALUES (?, ?, ?, ?, 'withdraw', ?, 1, 1, 'normal', ?, ?, ?)`
+        )
+        .bind(
+          createId("tkt"),
+          streamerId,
+          fan.id,
+          session.id,
+          withdrawDelta,
+          `本场榜单取票变化：${body.note?.trim() || "无备注"}`,
+          account.id,
+          timestamp
+        )
+    );
+  }
+
+  if (depositDelta !== 0) {
+    ticketWrites.push(
+      context.env.DB
+        .prepare(
+          `INSERT INTO ticket_ledgers
+            (id, streamer_id, fan_id, session_id, type, amount, affects_balance, affects_competition,
+             status, note, created_by, created_at)
+           VALUES (?, ?, ?, ?, 'deposit', ?, 1, 0, 'normal', ?, ?, ?)`
+        )
+        .bind(
+          createId("tkt"),
+          streamerId,
+          fan.id,
+          session.id,
+          depositDelta,
+          `本场榜单存票变化：${body.note?.trim() || "无备注"}`,
+          account.id,
+          timestamp
+        )
+    );
+  }
+
+  if (ticketWrites.length > 0) {
+    await context.env.DB.batch(ticketWrites);
+    await refreshFanTicketBalance(context.env.DB, fan.id);
+  }
+
+  await writeAuditLog(
+    context.env.DB,
+    toPublicAccount(account),
+    "upsert_session_board_entry",
+    "live_session_board_entry",
+    fan.id,
+    `更新本场榜单：${fan.display_name} 总票 ${giftDiamonds + ticketUsed - ticketDeposit + manualAdjustment}`,
+    streamerId
+  );
+
+  return context.json({ ok: true });
+});
+
 app.get("/api/rankings", async (context) => {
   const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
   if (!account) {
@@ -1714,7 +2139,14 @@ app.post("/api/rankings", async (context) => {
     return context.json(jsonError("请先登录。", 401), 401);
   }
 
-  const body = await context.req.json<{ streamerId?: string; sessionId?: string; title?: string; style?: string; note?: string }>();
+  const body = await context.req.json<{
+    streamerId?: string;
+    sessionId?: string;
+    roundNo?: number;
+    title?: string;
+    style?: string;
+    note?: string;
+  }>();
   const { streamerId } = await resolveStreamerId(context.env.DB, account, body.streamerId);
   if (!streamerId) {
     return context.json(jsonError("没有可用的主播空间。"), 400);
@@ -1727,11 +2159,13 @@ app.post("/api/rankings", async (context) => {
     return context.json(jsonError("请选择有效场次。"), 400);
   }
 
-  const title = body.title?.trim() || `第 ${new Date().toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })} 次定榜`;
   const style = normalizeRankingStyle(body.style);
   const roundRow = await context.env.DB.prepare("SELECT COALESCE(MAX(round_no), 0) + 1 AS nextRound FROM ranking_snapshots WHERE session_id = ?")
     .bind(session.id)
     .first<{ nextRound: number }>();
+  const requestedRoundNo = Number(body.roundNo);
+  const roundNo = Number.isInteger(requestedRoundNo) && requestedRoundNo > 0 ? requestedRoundNo : roundRow?.nextRound ?? 1;
+  const title = body.title?.trim() || `第 ${roundNo} 次定榜`;
   const snapshotId = createId("rank");
   const timestamp = nowIso();
 
@@ -1740,7 +2174,7 @@ app.post("/api/rankings", async (context) => {
       (id, session_id, title, round_no, style, status, note, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?)`
   )
-    .bind(snapshotId, session.id, title, roundRow?.nextRound ?? 1, style, body.note?.trim() || null, timestamp, timestamp)
+    .bind(snapshotId, session.id, title || `第 ${roundNo} 次定榜`, roundNo, style, body.note?.trim() || null, timestamp, timestamp)
     .run();
 
   await writeAuditLog(
@@ -1792,10 +2226,10 @@ app.patch("/api/rankings/:snapshotId/status", async (context) => {
     const endsAt = new Date(Date.now() + seconds * 1000).toISOString();
     await context.env.DB.prepare(
       `UPDATE ranking_snapshots
-       SET status = 'countdown', countdown_started_at = ?, countdown_ends_at = ?, frozen_at = NULL, updated_at = ?
+       SET status = 'countdown', countdown_seconds = ?, countdown_started_at = ?, countdown_ends_at = ?, frozen_at = NULL, updated_at = ?
        WHERE id = ?`
     )
-      .bind(timestamp, endsAt, timestamp, snapshotId)
+      .bind(seconds, timestamp, endsAt, timestamp, snapshotId)
       .run();
 
     await writeAuditLog(
@@ -1811,7 +2245,7 @@ app.patch("/api/rankings/:snapshotId/status", async (context) => {
   }
 
   if (action === "freeze") {
-    await recomputeRankingDecisions(context.env.DB, snapshotId, snapshot.style);
+    await replaceRankingEntriesFromBoard(context.env.DB, snapshot);
     await context.env.DB.prepare(
       "UPDATE ranking_snapshots SET status = 'frozen', frozen_at = ?, updated_at = ? WHERE id = ?"
     )

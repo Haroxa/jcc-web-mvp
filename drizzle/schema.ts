@@ -142,6 +142,7 @@ export const rankingSnapshots = sqliteTable("ranking_snapshots", {
   roundNo: integer("round_no").notNull(),
   style: text("style").notNull(),
   status: text("status").notNull().default("draft"),
+  countdownSeconds: integer("countdown_seconds").notNull().default(180),
   countdownStartedAt: text("countdown_started_at"),
   countdownEndsAt: text("countdown_ends_at"),
   frozenAt: text("frozen_at"),
@@ -166,6 +167,25 @@ export const rankingEntries = sqliteTable("ranking_entries", {
   competitionScore: integer("competition_score").notNull().default(0),
   fanTypeAtTime: text("fan_type_at_time").notNull().default("unknown"),
   seatDecision: text("seat_decision").notNull().default("pending"),
+  note: text("note"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull()
+});
+
+export const liveSessionBoardEntries = sqliteTable("live_session_board_entries", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id")
+    .notNull()
+    .references(() => liveSessions.id),
+  fanId: text("fan_id")
+    .notNull()
+    .references(() => fans.id),
+  giftDiamonds: integer("gift_diamonds").notNull().default(0),
+  ticketUsed: integer("ticket_used").notNull().default(0),
+  ticketDeposit: integer("ticket_deposit").notNull().default(0),
+  manualAdjustment: integer("manual_adjustment").notNull().default(0),
+  status: text("status").notNull().default("normal"),
+  tieOrder: integer("tie_order").notNull().default(0),
   note: text("note"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull()

@@ -455,6 +455,50 @@ h1 {
   font-size: 17px;
 }
 
+.board-table {
+  display: grid;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.board-table-head,
+.board-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(240px, 1.3fr) minmax(120px, 0.6fr) minmax(160px, 1fr);
+  gap: 12px;
+  min-width: 760px;
+  align-items: center;
+}
+
+.board-table-head {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 12px;
+}
+
+.board-row {
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.board-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.board-row strong {
+  color: #142538;
+  font-size: 18px;
+}
+
+.board-row span {
+  color: #64748b;
+  font-size: 13px;
+}
+
 .panel {
   padding: 18px;
 }
