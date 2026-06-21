@@ -509,6 +509,43 @@ h1 {
   width: 100%;
 }
 
+.board-countdown-strip {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(160px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #b8c9d9;
+  border-radius: 8px;
+  background: #e8f1f8;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+}
+
+.board-countdown-strip div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.board-countdown-strip span {
+  color: #405366;
+  font-size: 13px;
+}
+
+.board-countdown-strip strong {
+  color: #142538;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.board-countdown-strip .row-actions {
+  justify-content: flex-end;
+}
+
+.board-countdown-strip .primary-button,
+.board-countdown-strip .secondary-button {
+  padding: 7px 10px;
+}
+
 .empty-workflow {
   display: grid;
   gap: 6px;
@@ -537,7 +574,15 @@ h1 {
 .score-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
+}
+
+.score-grid label {
+  min-width: 0;
+}
+
+.score-grid input {
+  min-height: 40px;
 }
 
 .score-preview {
@@ -600,16 +645,16 @@ h1 {
 
 .board-table {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   overflow-x: auto;
 }
 
 .board-table-head,
 .board-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1.1fr) minmax(210px, 1.35fr) minmax(110px, 0.6fr) minmax(120px, 0.8fr);
-  gap: 10px;
-  min-width: 760px;
+  grid-template-columns: minmax(136px, 1.05fr) minmax(180px, 1.25fr) minmax(92px, 0.55fr) minmax(88px, 0.65fr);
+  gap: 6px;
+  min-width: 620px;
   align-items: center;
 }
 
@@ -624,8 +669,8 @@ h1 {
   border: 1px solid #d8e0e8;
   border-radius: 8px;
   background: #ffffff;
-  min-height: 54px;
-  padding: 8px 10px;
+  min-height: 44px;
+  padding: 6px 8px;
 }
 
 .board-row div {
@@ -635,17 +680,17 @@ h1 {
 
 .board-row strong {
   color: #142538;
-  font-size: 17px;
+  font-size: 16px;
 }
 
 .board-row span {
   color: #64748b;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .fixed-board-table {
-  min-height: 450px;
-  max-height: 450px;
+  min-height: 356px;
+  max-height: 356px;
   overflow: auto;
   align-content: start;
 }
@@ -657,7 +702,7 @@ h1 {
 }
 
 .board-empty {
-  min-height: 378px;
+  min-height: 298px;
   padding: 12px;
 }
 
@@ -899,6 +944,14 @@ h1 {
 
   .account-row {
     display: grid;
+  }
+
+  .board-countdown-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .board-countdown-strip .row-actions {
+    justify-content: flex-start;
   }
 
   .operation-rail {

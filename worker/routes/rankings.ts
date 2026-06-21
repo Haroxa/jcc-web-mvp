@@ -212,6 +212,84 @@ export function registerRankingRoutes(app: WorkerApp) {
       );
       return context.json({ ok: true, countdownStartedAt: timestamp, countdownEndsAt: endsAt });
     }
+
+    if (action === "pause_countdown") {
+      if (snapshot.status !== "countdown" || !snapshot.countdown_ends_at) {
+        return context.json(jsonError("只有倒计时中的定榜可以暂停。"), 400);
+      }
+      const remainingSeconds = Math.max(
+        1,
+        Math.floor((new Date(snapshot.countdown_ends_at).getTime() - Date.now()) / 1000)
+      );
+      await context.env.DB.prepare(
+        `UPDATE ranking_snapshots
+         SET status = 'paused', countdown_seconds = ?, countdown_started_at = NULL, countdown_ends_at = NULL, updated_at = ?
+         WHERE id = ?`
+      )
+        .bind(remainingSeconds, timestamp, snapshotId)
+        .run();
+
+      await writeAuditLog(
+        context.env.DB,
+        toPublicAccount(account),
+        "pause_ranking_countdown",
+        "ranking_snapshot",
+        snapshotId,
+        `暂停定榜倒计时：${snapshot.title}，剩余 ${remainingSeconds} 秒`,
+        streamerId
+      );
+      return context.json({ ok: true, remainingSeconds });
+    }
+
+    if (action === "resume_countdown") {
+      if (snapshot.status !== "paused") {
+        return context.json(jsonError("只有已暂停的定榜可以继续倒计时。"), 400);
+      }
+      const seconds = snapshot.countdown_seconds > 0 ? snapshot.countdown_seconds : 180;
+      const endsAt = new Date(Date.now() + seconds * 1000).toISOString();
+      await context.env.DB.prepare(
+        `UPDATE ranking_snapshots
+         SET status = 'countdown', countdown_started_at = ?, countdown_ends_at = ?, updated_at = ?
+         WHERE id = ?`
+      )
+        .bind(timestamp, endsAt, timestamp, snapshotId)
+        .run();
+
+      await writeAuditLog(
+        context.env.DB,
+        toPublicAccount(account),
+        "resume_ranking_countdown",
+        "ranking_snapshot",
+        snapshotId,
+        `继续定榜倒计时：${snapshot.title}`,
+        streamerId
+      );
+      return context.json({ ok: true, countdownStartedAt: timestamp, countdownEndsAt: endsAt });
+    }
+
+    if (action === "reset_countdown") {
+      if (!["draft", "countdown", "paused"].includes(snapshot.status)) {
+        return context.json(jsonError("已冻结的定榜不能直接重置倒计时。"), 400);
+      }
+      await context.env.DB.prepare(
+        `UPDATE ranking_snapshots
+         SET status = 'paused', countdown_seconds = 180, countdown_started_at = NULL, countdown_ends_at = NULL, frozen_at = NULL, updated_at = ?
+         WHERE id = ?`
+      )
+        .bind(timestamp, snapshotId)
+        .run();
+
+      await writeAuditLog(
+        context.env.DB,
+        toPublicAccount(account),
+        "reset_ranking_countdown",
+        "ranking_snapshot",
+        snapshotId,
+        `重置定榜倒计时：${snapshot.title}`,
+        streamerId
+      );
+      return context.json({ ok: true, remainingSeconds: 180 });
+    }
   
     if (action === "freeze") {
       await replaceRankingEntriesFromBoard(context.env.DB, snapshot);

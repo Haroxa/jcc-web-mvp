@@ -167,31 +167,36 @@ export function RankingManager({
   const awayEntries = boardEntries.filter((entry) => entry.status === "away");
   const blockedEntries = boardEntries.filter((entry) => entry.status === "blocked");
   const countdownSnapshot = snapshots.find((item) => item.status === "countdown");
+  const pausedSnapshot = snapshots.find((item) => item.status === "paused");
+  const activeTimingSnapshot = countdownSnapshot ?? pausedSnapshot;
   const latestFrozenSnapshot = snapshots.find((item) => ["frozen", "confirmed", "used_for_match"].includes(item.status));
   const latestFinishedSnapshot = latestFrozenSnapshot ?? snapshots.find((item) => item.status !== "voided");
   const countdownLeft = countdownSnapshot?.countdownEndsAt
     ? Math.max(0, Math.floor((new Date(countdownSnapshot.countdownEndsAt).getTime() - nowTick) / 1000))
     : 0;
+  const timingLeft = countdownSnapshot ? countdownLeft : pausedSnapshot?.countdownSeconds ?? 0;
   const isBoardReadOnly = session?.status === "settled" || session?.status === "cancelled";
 
   const isSessionLive = session?.status === "live";
-  const canCreateRanking = Boolean(activeSessionId && isSessionLive && boardEntries.length > 0 && !isBoardReadOnly && !countdownSnapshot);
+  const canCreateRanking = Boolean(activeSessionId && isSessionLive && boardEntries.length > 0 && !isBoardReadOnly && !activeTimingSnapshot);
   const rankingActionHint = !activeSessionId
     ? "请先选择场次。"
     : !isSessionLive
       ? "开始直播后才能创建定榜。"
       : boardEntries.length === 0
         ? "先维护本场榜单，再创建定榜。"
-        : countdownSnapshot
-          ? "当前正在定榜倒计时，继续维护榜单或提前冻结。"
+        : activeTimingSnapshot
+          ? "当前已有定榜倒计时，继续维护榜单或按需操作倒计时。"
           : "创建后会直接开始三分钟倒计时。";
-  const rankingStatusText = countdownSnapshot
-    ? `倒计时中 ${formatDuration(countdownLeft)}`
+  const rankingStatusText = activeTimingSnapshot
+    ? `${rankingStatusLabel(activeTimingSnapshot.status)} ${formatDuration(timingLeft)}`
     : latestFinishedSnapshot
       ? rankingStatusLabel(latestFinishedSnapshot.status)
       : "未定榜";
   const nextStepText = countdownSnapshot
-    ? "倒计时结束会自动冻结，也可手动提前冻结。"
+    ? "倒计时结束会自动冻结，可暂停、重置或提前冻结。"
+    : pausedSnapshot
+      ? "倒计时已暂停，可继续、重置或提前冻结。"
     : latestFrozenSnapshot
       ? "检查冻结结果后进入名单确认。"
       : boardEntries.length > 0
@@ -293,7 +298,10 @@ export function RankingManager({
     }
   }
 
-  async function updateSnapshotStatus(snapshotId: string, action: "start_countdown" | "freeze" | "reopen") {
+  async function updateSnapshotStatus(
+    snapshotId: string,
+    action: "start_countdown" | "pause_countdown" | "resume_countdown" | "reset_countdown" | "freeze" | "reopen"
+  ) {
     setIsLoading(true);
     setNotice("");
     try {
@@ -302,7 +310,17 @@ export function RankingManager({
         body: JSON.stringify({ action, seconds: 180 })
       });
       setNotice(
-        action === "start_countdown" ? "三分钟倒计时已开始。" : action === "freeze" ? "已按当前榜单重新冻结。" : "已重新打开。"
+        action === "start_countdown"
+          ? "三分钟倒计时已开始。"
+          : action === "pause_countdown"
+            ? "定榜倒计时已暂停。"
+            : action === "resume_countdown"
+              ? "定榜倒计时已继续。"
+              : action === "reset_countdown"
+                ? "定榜倒计时已重置为 3 分钟并暂停。"
+                : action === "freeze"
+                  ? "已按当前榜单重新冻结。"
+                  : "已重新打开。"
       );
       await loadBoard(activeSessionId);
     } catch (error) {
@@ -338,7 +356,7 @@ export function RankingManager({
             <strong>{rankingStatusText}</strong>
           </div>
           <div>
-            <span>正常竞争</span>
+            <span>正常榜单</span>
             <strong>{normalEntries.length}</strong>
           </div>
           <div>
@@ -354,7 +372,57 @@ export function RankingManager({
           </div>
         ) : null}
 
-        <BoardEntryGroup title="正常竞争榜" entries={normalEntries} fixedRows />
+        {activeTimingSnapshot ? (
+          <div className="board-countdown-strip">
+            <div>
+              <span>{pausedSnapshot ? "定榜已暂停" : "定榜倒计时"}</span>
+              <strong>{formatDuration(timingLeft)}</strong>
+            </div>
+            <span>
+              第 {activeTimingSnapshot.roundNo} 次 · {rankingStyleLabel(activeTimingSnapshot.style)}
+            </span>
+            <div className="row-actions">
+              {countdownSnapshot ? (
+                <button
+                  className="secondary-button"
+                  disabled={isLoading}
+                  onClick={() => updateSnapshotStatus(countdownSnapshot.id, "pause_countdown")}
+                  type="button"
+                >
+                  暂停
+                </button>
+              ) : null}
+              {pausedSnapshot ? (
+                <button
+                  className="secondary-button"
+                  disabled={isLoading}
+                  onClick={() => updateSnapshotStatus(pausedSnapshot.id, "resume_countdown")}
+                  type="button"
+                >
+                  继续
+                </button>
+              ) : null}
+              <button
+                className="secondary-button"
+                disabled={isLoading}
+                onClick={() => updateSnapshotStatus(activeTimingSnapshot.id, "reset_countdown")}
+                type="button"
+              >
+                重置
+              </button>
+              <button
+                className="primary-button"
+                disabled={isLoading}
+                onClick={() => updateSnapshotStatus(activeTimingSnapshot.id, "freeze")}
+                type="button"
+              >
+                立即冻结
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <BoardEntryGroup title="正常榜单" entries={normalEntries} fixedRows />
         <BoardEntryGroup title="本场新粉" entries={newFanEntries} emptyText="当前没有本场新粉。" />
         <BoardEntryGroup title="待定" entries={pendingEntries} emptyText="没有待定粉丝。" />
         <BoardEntryGroup title="有事不来" entries={awayEntries} emptyText="没有标记有事不来的粉丝。" />
@@ -504,20 +572,48 @@ export function RankingManager({
           {notice ? <p className="notice">{notice}</p> : null}
         </form>
 
-        {countdownSnapshot ? (
+        {activeTimingSnapshot ? (
           <section className="form-panel nested-form ranking-action-panel">
             <div className="panel-header">
-              <h2>定榜倒计时</h2>
-              <span>{formatDuration(countdownLeft)}</span>
+              <h2>{pausedSnapshot ? "定榜已暂停" : "定榜倒计时"}</h2>
+              <span>{formatDuration(timingLeft)}</span>
             </div>
             <div className="action-summary">
-              <strong>正在按当前榜单定榜</strong>
-              <span>倒计时结束会自动冻结。直播现场仍可继续保存榜单，必要时也可以提前冻结。</span>
+              <strong>第 {activeTimingSnapshot.roundNo} 次 · {activeTimingSnapshot.title}</strong>
+              <span>{pausedSnapshot ? "倒计时已暂停，可继续或重置。" : "倒计时结束会自动冻结，也可暂停、重置或提前冻结。"}</span>
             </div>
+            {countdownSnapshot ? (
+              <button
+                className="secondary-button"
+                disabled={isLoading}
+                onClick={() => updateSnapshotStatus(countdownSnapshot.id, "pause_countdown")}
+                type="button"
+              >
+                暂停倒计时
+              </button>
+            ) : null}
+            {pausedSnapshot ? (
+              <button
+                className="secondary-button"
+                disabled={isLoading}
+                onClick={() => updateSnapshotStatus(pausedSnapshot.id, "resume_countdown")}
+                type="button"
+              >
+                继续倒计时
+              </button>
+            ) : null}
+            <button
+              className="secondary-button"
+              disabled={isLoading}
+              onClick={() => updateSnapshotStatus(activeTimingSnapshot.id, "reset_countdown")}
+              type="button"
+            >
+              重置为 3 分钟
+            </button>
             <button
               className="primary-button"
               disabled={isLoading}
-              onClick={() => updateSnapshotStatus(countdownSnapshot.id, "freeze")}
+              onClick={() => updateSnapshotStatus(activeTimingSnapshot.id, "freeze")}
               type="button"
             >
               立即按当前榜单冻结

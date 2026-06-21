@@ -35,6 +35,7 @@ export function seatDecisionLabel(value: string) {
 export function rankingStatusLabel(value: string) {
   if (value === "draft") return "编辑中";
   if (value === "countdown") return "倒计时中";
+  if (value === "paused") return "已暂停";
   if (value === "frozen") return "已冻结";
   if (value === "confirmed") return "已确认";
   if (value === "used_for_match") return "已创建对局";

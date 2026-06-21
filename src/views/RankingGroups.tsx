@@ -68,8 +68,8 @@ export function BoardEntryGroup({
         <div className={tableClassName}>
           <div className="board-table-head">
             <span>排名 / 粉丝 / 总票</span>
-            <span>票数明细</span>
-            <span>余额预览</span>
+            <span>明细</span>
+            <span>余额</span>
             <span>备注</span>
           </div>
           {entries.length === 0 ? <p className="muted board-empty">{emptyText}</p> : null}
