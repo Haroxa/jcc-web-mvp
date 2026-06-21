@@ -144,7 +144,7 @@ export function CurrentSessionWorkspace({
     }
 
     if (activeTab === "ranking") {
-      return <RankingManager account={account} contextSessionId={activeSession.id} />;
+      return <RankingManager account={account} contextSessionId={activeSession.id} onOpenLineup={() => setActiveTab("lineup")} />;
     }
 
     if (activeTab === "tickets") {
@@ -209,6 +209,9 @@ export function CurrentSessionWorkspace({
               ? `${activeSession.streamerName || account.displayName} · ${sessionTypeLabel(activeSession.sessionType)} · ${sessionStatusLabel(activeSession.status)}`
               : "创建场次后，定榜、名单、锁牌、存票和结算都会默认挂到当前场次。"}
           </p>
+          {account.role === "admin" && activeSession?.streamerName ? (
+            <p className="operator-context">正在代操作：{activeSession.streamerName}</p>
+          ) : null}
           {activeSession ? (
             <p className="session-timeline">
               开始：{formatDateTime(activeSession.startedAt)} · 结束：{formatDateTime(activeSession.endedAt)} · 结算：

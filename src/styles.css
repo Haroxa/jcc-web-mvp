@@ -346,6 +346,12 @@ h1 {
   margin-top: 6px;
 }
 
+.operator-context {
+  margin-top: 6px;
+  color: #1f4f7a;
+  font-weight: 700;
+}
+
 .session-context-actions {
   display: grid;
   gap: 10px;
@@ -469,6 +475,40 @@ h1 {
   font-size: 13px;
 }
 
+.ranking-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.ranking-summary-grid div,
+.action-summary {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #f8fbfd;
+  padding: 10px 12px;
+}
+
+.ranking-summary-grid span,
+.action-summary span {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ranking-summary-grid strong,
+.action-summary strong {
+  color: #142538;
+}
+
+.ranking-action-panel .secondary-button,
+.ranking-action-panel .primary-button {
+  width: 100%;
+}
+
 .empty-workflow {
   display: grid;
   gap: 6px;
@@ -560,15 +600,15 @@ h1 {
 
 .board-table {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
 }
 
 .board-table-head,
 .board-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.2fr) minmax(240px, 1.3fr) minmax(120px, 0.6fr) minmax(160px, 1fr);
-  gap: 12px;
+  grid-template-columns: minmax(150px, 1.1fr) minmax(210px, 1.35fr) minmax(110px, 0.6fr) minmax(120px, 0.8fr);
+  gap: 10px;
   min-width: 760px;
   align-items: center;
 }
@@ -584,22 +624,41 @@ h1 {
   border: 1px solid #d8e0e8;
   border-radius: 8px;
   background: #ffffff;
-  padding: 12px;
+  min-height: 54px;
+  padding: 8px 10px;
 }
 
 .board-row div {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .board-row strong {
   color: #142538;
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .board-row span {
   color: #64748b;
   font-size: 13px;
+}
+
+.fixed-board-table {
+  min-height: 450px;
+  max-height: 450px;
+  overflow: auto;
+  align-content: start;
+}
+
+.rank-number {
+  display: inline-block;
+  min-width: 22px;
+  color: #1f4f7a;
+}
+
+.board-empty {
+  min-height: 378px;
+  padding: 12px;
 }
 
 .panel {
@@ -856,7 +915,8 @@ h1 {
     grid-template-columns: 1fr;
   }
 
-  .metric-grid {
+  .metric-grid,
+  .ranking-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -868,6 +928,7 @@ h1 {
 
   .nav-list,
   .metric-grid,
+  .ranking-summary-grid,
   .session-stage-flow {
     grid-template-columns: 1fr;
   }

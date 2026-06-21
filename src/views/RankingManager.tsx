@@ -18,7 +18,15 @@ import {
   sessionStatusLabel
 } from "../utils/labels";
 import { BoardEntryGroup } from "./RankingGroups";
-export function RankingManager({ account, contextSessionId = "" }: { account: Account | null; contextSessionId?: string }) {
+export function RankingManager({
+  account,
+  contextSessionId = "",
+  onOpenLineup
+}: {
+  account: Account | null;
+  contextSessionId?: string;
+  onOpenLineup?: () => void;
+}) {
   const [session, setSession] = useState<LiveSessionItem | null>(null);
   const [boardEntries, setBoardEntries] = useState<BoardEntryItem[]>([]);
   const [snapshots, setSnapshots] = useState<RankingSnapshotItem[]>([]);
@@ -159,20 +167,36 @@ export function RankingManager({ account, contextSessionId = "" }: { account: Ac
   const awayEntries = boardEntries.filter((entry) => entry.status === "away");
   const blockedEntries = boardEntries.filter((entry) => entry.status === "blocked");
   const countdownSnapshot = snapshots.find((item) => item.status === "countdown");
+  const latestFrozenSnapshot = snapshots.find((item) => ["frozen", "confirmed", "used_for_match"].includes(item.status));
+  const latestFinishedSnapshot = latestFrozenSnapshot ?? snapshots.find((item) => item.status !== "voided");
   const countdownLeft = countdownSnapshot?.countdownEndsAt
     ? Math.max(0, Math.floor((new Date(countdownSnapshot.countdownEndsAt).getTime() - nowTick) / 1000))
     : 0;
   const isBoardReadOnly = session?.status === "settled" || session?.status === "cancelled";
 
   const isSessionLive = session?.status === "live";
-  const canCreateRanking = Boolean(activeSessionId && isSessionLive && boardEntries.length > 0 && !isBoardReadOnly);
+  const canCreateRanking = Boolean(activeSessionId && isSessionLive && boardEntries.length > 0 && !isBoardReadOnly && !countdownSnapshot);
   const rankingActionHint = !activeSessionId
     ? "请先选择场次。"
     : !isSessionLive
       ? "开始直播后才能创建定榜。"
       : boardEntries.length === 0
         ? "先维护本场榜单，再创建定榜。"
-        : "创建后可开始三分钟倒计时。";
+        : countdownSnapshot
+          ? "当前正在定榜倒计时，继续维护榜单或提前冻结。"
+          : "创建后会直接开始三分钟倒计时。";
+  const rankingStatusText = countdownSnapshot
+    ? `倒计时中 ${formatDuration(countdownLeft)}`
+    : latestFinishedSnapshot
+      ? rankingStatusLabel(latestFinishedSnapshot.status)
+      : "未定榜";
+  const nextStepText = countdownSnapshot
+    ? "倒计时结束会自动冻结，也可手动提前冻结。"
+    : latestFrozenSnapshot
+      ? "检查冻结结果后进入名单确认。"
+      : boardEntries.length > 0
+        ? "确认榜单后开始定榜倒计时。"
+        : "先录入本场榜单。";
   function patchRankingForm(key: keyof RankingForm, value: string) {
     setRankingForm((current) => ({ ...current, [key]: value }));
   }
@@ -254,8 +278,12 @@ export function RankingManager({ account, contextSessionId = "" }: { account: Ac
           note: rankingForm.note
         })
       });
+      await apiRequest<{ ok: boolean }>(`/api/rankings/${result.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "start_countdown", seconds: 180 })
+      });
       setActiveSnapshotId(result.id);
-      setNotice("定榜记录已创建，可以开始倒计时。");
+      setNotice("定榜记录已创建，三分钟倒计时已开始。");
       setRankingForm((current) => ({ ...current, title: "", note: "", roundNo: "" }));
       await loadBoard(activeSessionId);
     } catch (error) {
@@ -295,9 +323,28 @@ export function RankingManager({ account, contextSessionId = "" }: { account: Ac
         <div className="ranking-status-strip">
           <div>
             <strong>{session ? sessionStatusLabel(session.status) : "未选择场次"}</strong>
-            <span>{rankingActionHint}</span>
+            <span>{nextStepText}</span>
           </div>
-          {countdownSnapshot ? <span>定榜倒计时 {formatDuration(countdownLeft)}</span> : <span>未开始倒计时</span>}
+          <span>{rankingStatusText}</span>
+        </div>
+
+        <div className="ranking-summary-grid">
+          <div>
+            <span>榜单人数</span>
+            <strong>{boardEntries.length}</strong>
+          </div>
+          <div>
+            <span>定榜状态</span>
+            <strong>{rankingStatusText}</strong>
+          </div>
+          <div>
+            <span>正常竞争</span>
+            <strong>{normalEntries.length}</strong>
+          </div>
+          <div>
+            <span>待处理</span>
+            <strong>{pendingEntries.length + awayEntries.length + blockedEntries.length}</strong>
+          </div>
         </div>
 
         {boardEntries.length === 0 ? (
@@ -307,7 +354,7 @@ export function RankingManager({ account, contextSessionId = "" }: { account: Ac
           </div>
         ) : null}
 
-        <BoardEntryGroup title="正常竞争榜" entries={normalEntries} />
+        <BoardEntryGroup title="正常竞争榜" entries={normalEntries} fixedRows />
         <BoardEntryGroup title="本场新粉" entries={newFanEntries} emptyText="当前没有本场新粉。" />
         <BoardEntryGroup title="待定" entries={pendingEntries} emptyText="没有待定粉丝。" />
         <BoardEntryGroup title="有事不来" entries={awayEntries} emptyText="没有标记有事不来的粉丝。" />
@@ -457,35 +504,79 @@ export function RankingManager({ account, contextSessionId = "" }: { account: Ac
           {notice ? <p className="notice">{notice}</p> : null}
         </form>
 
-        <form className="form-panel nested-form" onSubmit={createRanking}>
-          <div className="panel-header">
-            <h2>开始定榜</h2>
-            <span>{countdownSnapshot ? `倒计时 ${formatDuration(countdownLeft)}` : "默认 3:00"}</span>
-          </div>
+        {countdownSnapshot ? (
+          <section className="form-panel nested-form ranking-action-panel">
+            <div className="panel-header">
+              <h2>定榜倒计时</h2>
+              <span>{formatDuration(countdownLeft)}</span>
+            </div>
+            <div className="action-summary">
+              <strong>正在按当前榜单定榜</strong>
+              <span>倒计时结束会自动冻结。直播现场仍可继续保存榜单，必要时也可以提前冻结。</span>
+            </div>
+            <button
+              className="primary-button"
+              disabled={isLoading}
+              onClick={() => updateSnapshotStatus(countdownSnapshot.id, "freeze")}
+              type="button"
+            >
+              立即按当前榜单冻结
+            </button>
+          </section>
+        ) : latestFrozenSnapshot ? (
+          <section className="form-panel nested-form ranking-action-panel">
+            <div className="panel-header">
+              <h2>冻结结果</h2>
+              <span>{rankingStatusLabel(latestFrozenSnapshot.status)}</span>
+            </div>
+            <div className="action-summary">
+              <strong>第 {latestFrozenSnapshot.roundNo} 次 · {latestFrozenSnapshot.title}</strong>
+              <span>冻结：{formatDateTime(latestFrozenSnapshot.frozenAt)}</span>
+              <span>下一步应确认名单，再进入对局。</span>
+            </div>
+            <button className="primary-button" disabled={!onOpenLineup} onClick={onOpenLineup} type="button">
+              进入名单确认
+            </button>
+            <button
+              className="secondary-button"
+              disabled={isLoading}
+              onClick={() => updateSnapshotStatus(latestFrozenSnapshot.id, "freeze")}
+              type="button"
+            >
+              按当前榜单重新冻结
+            </button>
+          </section>
+        ) : (
+          <form className="form-panel nested-form ranking-action-panel" onSubmit={createRanking}>
+            <div className="panel-header">
+              <h2>开始定榜</h2>
+              <span>默认 3:00</span>
+            </div>
 
-          <label>
-            定榜编号
-            <input inputMode="numeric" onChange={(event) => patchRankingForm("roundNo", event.target.value)} placeholder="留空自动接着编号" value={rankingForm.roundNo} />
-          </label>
-          <label>
-            定榜规则
-            <select onChange={(event) => patchRankingForm("style", event.target.value)} value={rankingForm.style}>
-              {rankingStyleOptions.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            定榜名称
-            <input onChange={(event) => patchRankingForm("title", event.target.value)} placeholder="留空自动生成" value={rankingForm.title} />
-          </label>
-          <p className="muted">{rankingActionHint}</p>
-          <button className="primary-button" disabled={isLoading || !canCreateRanking} type="submit">
-            创建定榜记录
-          </button>
-        </form>
+            <label>
+              定榜编号
+              <input inputMode="numeric" onChange={(event) => patchRankingForm("roundNo", event.target.value)} placeholder="留空自动接着编号" value={rankingForm.roundNo} />
+            </label>
+            <label>
+              定榜规则
+              <select onChange={(event) => patchRankingForm("style", event.target.value)} value={rankingForm.style}>
+                {rankingStyleOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              定榜名称
+              <input onChange={(event) => patchRankingForm("title", event.target.value)} placeholder="留空自动生成" value={rankingForm.title} />
+            </label>
+            <p className="muted">{rankingActionHint}</p>
+            <button className="primary-button" disabled={isLoading || !canCreateRanking} type="submit">
+              开始三分钟定榜
+            </button>
+          </form>
+        )}
       </div>
     </section>
   );
