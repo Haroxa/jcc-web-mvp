@@ -92,7 +92,7 @@ export function BoardEntryGroup({
               </div>
               <div>
                 <span>
-                  {entry.cachedTicketBalance} → {entry.balancePreview}
+                  {formatBoardBalance(entry)}
                 </span>
               </div>
               <div>{entry.note ? <span>{entry.note}</span> : null}</div>
@@ -110,4 +110,9 @@ function formatBoardScore(entry: BoardEntryItem) {
   if (entry.ticketDeposit !== 0) parts.push(`存票 -${entry.ticketDeposit}`);
   if (entry.manualAdjustment !== 0) parts.push(`调整 ${entry.manualAdjustment > 0 ? "+" : ""}${entry.manualAdjustment}`);
   return parts.join(" · ");
+}
+
+function formatBoardBalance(entry: BoardEntryItem) {
+  if (entry.cachedTicketBalance === entry.balancePreview) return String(entry.cachedTicketBalance);
+  return `${entry.cachedTicketBalance} → ${entry.balancePreview}`;
 }

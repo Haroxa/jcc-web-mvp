@@ -439,7 +439,7 @@ h1 {
 
 .ranking-workbench {
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(360px, 0.72fr);
+  grid-template-columns: minmax(430px, 0.82fr) minmax(430px, 0.9fr);
   gap: 12px;
 }
 
@@ -512,14 +512,14 @@ h1 {
 
 .board-countdown-strip {
   display: grid;
-  grid-template-columns: minmax(128px, 0.55fr) minmax(140px, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: minmax(108px, 0.38fr) auto;
+  gap: 6px;
   align-items: center;
   border: 1px solid #b8c9d9;
   border-radius: 8px;
   background: #e8f1f8;
   margin-bottom: 8px;
-  padding: 7px 9px;
+  padding: 6px 8px;
 }
 
 .board-countdown-strip div:first-child {
@@ -534,7 +534,7 @@ h1 {
 
 .board-countdown-strip strong {
   color: #142538;
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
 }
 
@@ -544,7 +544,7 @@ h1 {
 
 .board-countdown-strip .primary-button,
 .board-countdown-strip .secondary-button {
-  padding: 6px 9px;
+  padding: 5px 8px;
 }
 
 .empty-workflow {
@@ -587,7 +587,7 @@ h1 {
 
 .fan-picker-list {
   display: grid;
-  max-height: 174px;
+  max-height: 132px;
   overflow: auto;
   border: 1px solid #cbd5df;
   border-radius: 8px;
@@ -637,7 +637,7 @@ h1 {
 }
 
 .quick-fan-form {
-  gap: 8px;
+  gap: 6px;
 }
 
 .quick-fan-grid {
@@ -647,12 +647,23 @@ h1 {
   align-items: end;
 }
 
+.compact-quick-fan-grid {
+  grid-template-columns: minmax(86px, 1fr) minmax(86px, 1fr) minmax(86px, 1fr) minmax(108px, 1fr);
+}
+
+.quick-fan-actions {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(120px, 0.8fr);
+  gap: 6px;
+  align-items: center;
+}
+
 .quick-new-fan-check {
-  min-height: 38px;
+  min-height: 34px;
   border: 1px solid #d8e0e8;
   border-radius: 8px;
   background: #f8fbfd;
-  padding: 7px 9px;
+  padding: 6px 8px;
 }
 
 .score-grid label {
@@ -666,8 +677,8 @@ h1 {
 
 .score-shortcuts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
 }
 
 .score-shortcuts button {
@@ -676,9 +687,9 @@ h1 {
   background: #ffffff;
   color: #405366;
   cursor: pointer;
-  font-size: 12px;
-  min-height: 26px;
-  padding: 3px 4px;
+  font-size: 11px;
+  min-height: 24px;
+  padding: 2px 3px;
 }
 
 .score-shortcuts button:hover {
@@ -815,7 +826,9 @@ h1 {
 
 .rank-number {
   display: inline-block;
-  min-width: 18px;
+  min-width: 16px;
+  margin-right: 6px;
+  text-align: right;
   color: #1f4f7a;
 }
 

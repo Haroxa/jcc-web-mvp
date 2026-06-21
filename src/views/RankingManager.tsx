@@ -55,6 +55,7 @@ export function RankingManager({
   const [quickFanForm, setQuickFanForm] = useState({
     displayName: "",
     douyinName: "",
+    gameName: "",
     note: "",
     isNewFan: true
   });
@@ -307,11 +308,13 @@ export function RankingManager({
           streamerId: session.streamerId,
           displayName: quickFanForm.displayName,
           douyinName: quickFanForm.douyinName,
+          gameName: quickFanForm.gameName,
           note: quickFanForm.note,
           statuses: quickFanForm.isNewFan ? ["new_fan"] : []
         })
       });
-      setQuickFanForm({ displayName: "", douyinName: "", note: "", isNewFan: true });
+      setFanSearch(quickFanForm.displayName);
+      setQuickFanForm({ displayName: "", douyinName: "", gameName: "", note: "", isNewFan: true });
       setEntryForm((current) => ({
         ...current,
         fanId: result.id,
@@ -443,10 +446,6 @@ export function RankingManager({
               <span>{activeTimingSnapshot ? (pausedSnapshot ? "定榜已暂停" : "定榜倒计时") : "定榜倒计时"}</span>
               <strong>{activeTimingSnapshot ? formatDuration(timingLeft) : "--:--"}</strong>
             </div>
-            <span>
-              第 {boardTimingSnapshot.roundNo} 次 · {rankingStyleLabel(boardTimingSnapshot.style)} ·{" "}
-              {rankingStatusLabel(boardTimingSnapshot.status)}
-            </span>
             <div className="row-actions">
               {countdownSnapshot ? (
                 <button
@@ -582,10 +581,10 @@ export function RankingManager({
 
         <form className="form-panel nested-form quick-fan-form" onSubmit={createQuickFan}>
           <div className="panel-header">
-            <h2>快速新增粉丝</h2>
+            <h2>新增粉丝</h2>
             <span>直播中</span>
           </div>
-          <div className="quick-fan-grid">
+          <div className="quick-fan-grid compact-quick-fan-grid">
             <label>
               粉丝名
               <input
@@ -603,8 +602,24 @@ export function RankingManager({
                 value={quickFanForm.douyinName}
               />
             </label>
+            <label>
+              游戏名
+              <input
+                onChange={(event) => patchQuickFanForm("gameName", event.target.value)}
+                placeholder="可选"
+                value={quickFanForm.gameName}
+              />
+            </label>
+            <label>
+              备注
+              <input
+                onChange={(event) => patchQuickFanForm("note", event.target.value)}
+                placeholder="临时说明"
+                value={quickFanForm.note}
+              />
+            </label>
           </div>
-          <div className="quick-fan-grid">
+          <div className="quick-fan-actions">
             <label className="inline-check quick-new-fan-check">
               <input
                 checked={quickFanForm.isNewFan}
@@ -613,18 +628,10 @@ export function RankingManager({
               />
               本场新粉
             </label>
-            <label>
-              备注
-              <input
-                onChange={(event) => patchQuickFanForm("note", event.target.value)}
-                placeholder="补充游戏名或说明"
-                value={quickFanForm.note}
-              />
-            </label>
+            <button className="secondary-button" disabled={isLoading || !session?.streamerId} type="submit">
+              新增并选中
+            </button>
           </div>
-          <button className="secondary-button" disabled={isLoading || !session?.streamerId} type="submit">
-            新增并选中
-          </button>
         </form>
 
         <form className="form-panel nested-form" onSubmit={saveBoardEntry}>
@@ -667,6 +674,7 @@ export function RankingManager({
               礼物钻
               <input inputMode="numeric" onChange={(event) => patchEntryForm("giftDiamonds", event.target.value)} placeholder="0" value={entryForm.giftDiamonds} />
               <span className="score-shortcuts">
+                <button onClick={() => bumpEntryNumber("giftDiamonds", -100)} type="button">-100</button>
                 <button onClick={() => bumpEntryNumber("giftDiamonds", 100)} type="button">+100</button>
                 <button onClick={() => bumpEntryNumber("giftDiamonds", 500)} type="button">+500</button>
                 <button onClick={() => bumpEntryNumber("giftDiamonds", 0)} type="button">清零</button>
@@ -676,6 +684,7 @@ export function RankingManager({
               取票
               <input inputMode="numeric" onChange={(event) => patchEntryForm("ticketUsed", event.target.value)} placeholder="0" value={entryForm.ticketUsed} />
               <span className="score-shortcuts">
+                <button onClick={() => bumpEntryNumber("ticketUsed", -100)} type="button">-100</button>
                 <button onClick={() => bumpEntryNumber("ticketUsed", 100)} type="button">+100</button>
                 <button onClick={() => bumpEntryNumber("ticketUsed", 500)} type="button">+500</button>
                 <button onClick={() => bumpEntryNumber("ticketUsed", 0)} type="button">清零</button>
@@ -685,6 +694,7 @@ export function RankingManager({
               存票
               <input inputMode="numeric" onChange={(event) => patchEntryForm("depositAmount", event.target.value)} placeholder="0" value={entryForm.depositAmount} />
               <span className="score-shortcuts">
+                <button onClick={() => bumpEntryNumber("depositAmount", -100)} type="button">-100</button>
                 <button onClick={() => bumpEntryNumber("depositAmount", 100)} type="button">+100</button>
                 <button onClick={() => bumpEntryNumber("depositAmount", 500)} type="button">+500</button>
                 <button onClick={() => bumpEntryNumber("depositAmount", 0)} type="button">清零</button>
@@ -694,8 +704,9 @@ export function RankingManager({
               调整
               <input inputMode="numeric" onChange={(event) => patchEntryForm("manualAdjustment", event.target.value)} value={entryForm.manualAdjustment} />
               <span className="score-shortcuts">
-                <button onClick={() => bumpEntryNumber("manualAdjustment", 100)} type="button">+100</button>
                 <button onClick={() => bumpEntryNumber("manualAdjustment", -100)} type="button">-100</button>
+                <button onClick={() => bumpEntryNumber("manualAdjustment", 100)} type="button">+100</button>
+                <button onClick={() => bumpEntryNumber("manualAdjustment", 500)} type="button">+500</button>
                 <button onClick={() => bumpEntryNumber("manualAdjustment", 0)} type="button">清零</button>
               </span>
             </label>
