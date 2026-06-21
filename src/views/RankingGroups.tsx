@@ -80,7 +80,6 @@ export function BoardEntryGroup({
                   <span className="rank-number">{index + 1}</span>
                   {entry.displayName} {entry.competitionScore}
                 </strong>
-                {entry.tieOrder ? <span>同票顺序 {entry.tieOrder}</span> : null}
               </div>
               <div>
                 <span>{formatBoardScore(entry)}</span>

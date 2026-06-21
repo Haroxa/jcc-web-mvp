@@ -171,6 +171,7 @@ export function RankingManager({
   const activeTimingSnapshot = countdownSnapshot ?? pausedSnapshot;
   const latestFrozenSnapshot = snapshots.find((item) => ["frozen", "confirmed", "used_for_match"].includes(item.status));
   const latestFinishedSnapshot = latestFrozenSnapshot ?? snapshots.find((item) => item.status !== "voided");
+  const boardTimingSnapshot = activeTimingSnapshot ?? latestFinishedSnapshot;
   const countdownLeft = countdownSnapshot?.countdownEndsAt
     ? Math.max(0, Math.floor((new Date(countdownSnapshot.countdownEndsAt).getTime() - nowTick) / 1000))
     : 0;
@@ -372,14 +373,15 @@ export function RankingManager({
           </div>
         ) : null}
 
-        {activeTimingSnapshot ? (
+        {boardTimingSnapshot ? (
           <div className="board-countdown-strip">
             <div>
-              <span>{pausedSnapshot ? "定榜已暂停" : "定榜倒计时"}</span>
-              <strong>{formatDuration(timingLeft)}</strong>
+              <span>{activeTimingSnapshot ? (pausedSnapshot ? "定榜已暂停" : "定榜倒计时") : "定榜倒计时"}</span>
+              <strong>{activeTimingSnapshot ? formatDuration(timingLeft) : "--:--"}</strong>
             </div>
             <span>
-              第 {activeTimingSnapshot.roundNo} 次 · {rankingStyleLabel(activeTimingSnapshot.style)}
+              第 {boardTimingSnapshot.roundNo} 次 · {rankingStyleLabel(boardTimingSnapshot.style)} ·{" "}
+              {rankingStatusLabel(boardTimingSnapshot.status)}
             </span>
             <div className="row-actions">
               {countdownSnapshot ? (
@@ -402,18 +404,29 @@ export function RankingManager({
                   继续
                 </button>
               ) : null}
-              <button
-                className="secondary-button"
-                disabled={isLoading}
-                onClick={() => updateSnapshotStatus(activeTimingSnapshot.id, "reset_countdown")}
-                type="button"
-              >
-                重置
-              </button>
+              {activeTimingSnapshot ? (
+                <button
+                  className="secondary-button"
+                  disabled={isLoading}
+                  onClick={() => updateSnapshotStatus(activeTimingSnapshot.id, "reset_countdown")}
+                  type="button"
+                >
+                  重置
+                </button>
+              ) : (
+                <button
+                  className="secondary-button"
+                  disabled={isLoading || !isSessionLive || isBoardReadOnly}
+                  onClick={() => updateSnapshotStatus(boardTimingSnapshot.id, "start_countdown")}
+                  type="button"
+                >
+                  开始三分钟
+                </button>
+              )}
               <button
                 className="primary-button"
-                disabled={isLoading}
-                onClick={() => updateSnapshotStatus(activeTimingSnapshot.id, "freeze")}
+                disabled={isLoading || !isSessionLive || isBoardReadOnly}
+                onClick={() => updateSnapshotStatus(boardTimingSnapshot.id, "freeze")}
                 type="button"
               >
                 立即冻结
