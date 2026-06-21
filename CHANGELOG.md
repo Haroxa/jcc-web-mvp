@@ -94,6 +94,43 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-21 10:40 批量拆分剩余过长文件
+#### 摘要
+
+- 将 `worker/shared.ts` 拆为 `worker/lib/types.ts`、`worker/lib/core.ts`、`worker/lib/accounts.ts`、`worker/lib/fans.ts`、`worker/lib/sessions.ts`、`worker/lib/tickets.ts` 和 `worker/lib/rankings.ts`，原 `worker/shared.ts` 保留为统一出口。
+- 新增 `src/views/HomeViews.tsx`，将总览、今日工作台和管理首页从 `src/App.tsx` 拆出。
+- 新增 `worker/routes/sessionBoard.ts` 和 `worker/routes/rankings.ts`，将本场榜单和定榜路由从 `worker/index.ts` 拆出。
+- 新增 `src/views/RankingGroups.tsx`，将榜单分组展示组件从 `src/views/RankingManager.tsx` 拆出。
+
+#### 拆分结果
+
+- `worker/shared.ts`：约 710 行降到 7 行。
+- `src/App.tsx`：约 683 行降到 324 行。
+- `worker/index.ts`：约 660 行降到 50 行。
+- `src/views/RankingManager.tsx`：约 563 行降到 462 行。
+- 当前 `src/` 和 `worker/` 下 TS/TSX 文件均低于 500 行。
+
+#### 说明
+
+本次是批量结构拆分，不改变 API 路径、页面入口和业务行为。拆分后后端入口只负责 Hono/CORS、健康检查和路由注册，前端入口只负责登录、导航和视图切换。
+
+#### 验证结果
+
+- `npm run typecheck` 已通过。
+- `npm run build` 已通过。
+- `git diff --check` 已通过。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "批量拆分剩余过长文件"
+git push origin main
+```
+
 ### 2026-06-21 10:14 拆分 Worker 票务路由
 #### 摘要
 
