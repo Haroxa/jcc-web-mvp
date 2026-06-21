@@ -39,7 +39,10 @@ textarea {
 }
 
 input[type="checkbox"] {
+  min-height: 0;
   width: auto;
+  height: 16px;
+  accent-color: #1f4f7a;
 }
 
 input:focus,
@@ -450,6 +453,13 @@ h1 {
   overflow: auto;
 }
 
+.operation-rail input,
+.operation-rail select,
+.operation-rail textarea {
+  min-height: 34px;
+  padding: 6px 9px;
+}
+
 .ranking-status-strip {
   display: flex;
   align-items: center;
@@ -587,7 +597,7 @@ h1 {
 
 .fan-picker-list {
   display: grid;
-  max-height: 132px;
+  max-height: 118px;
   overflow: auto;
   border: 1px solid #cbd5df;
   border-radius: 8px;
@@ -653,17 +663,18 @@ h1 {
 
 .quick-fan-actions {
   display: grid;
-  grid-template-columns: minmax(120px, 0.7fr) minmax(120px, 0.8fr);
+  grid-template-columns: max-content minmax(140px, 0.55fr);
   gap: 6px;
   align-items: center;
 }
 
 .quick-new-fan-check {
-  min-height: 34px;
+  min-height: 30px;
   border: 1px solid #d8e0e8;
   border-radius: 8px;
   background: #f8fbfd;
-  padding: 6px 8px;
+  padding: 5px 8px;
+  white-space: nowrap;
 }
 
 .score-grid label {
@@ -672,7 +683,7 @@ h1 {
 }
 
 .score-grid input {
-  min-height: 34px;
+  min-height: 32px;
 }
 
 .score-shortcuts {
@@ -700,13 +711,25 @@ h1 {
 
 .score-preview {
   display: grid;
-  gap: 3px;
-  border: 1px solid #cbd5df;
-  border-radius: 8px;
-  background: #f8fbfd;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
   color: #1f4f7a;
   font-weight: 700;
-  padding: 7px 9px;
+  padding: 0;
+}
+
+.score-preview span {
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #f8fbfd;
+  padding: 6px 8px;
+}
+
+.score-preview span:last-child {
+  grid-column: 1 / -1;
+  color: #405366;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .ranking-control {
