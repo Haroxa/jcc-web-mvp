@@ -57,7 +57,7 @@ export function RankingManager({
     douyinName: "",
     gameName: "",
     note: "",
-    isNewFan: true
+    fanType: "new_fan"
   });
   const [notice, setNotice] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -310,15 +310,15 @@ export function RankingManager({
           douyinName: quickFanForm.douyinName,
           gameName: quickFanForm.gameName,
           note: quickFanForm.note,
-          statuses: quickFanForm.isNewFan ? ["new_fan"] : []
+          statuses: [quickFanForm.fanType]
         })
       });
       setFanSearch(quickFanForm.displayName);
-      setQuickFanForm({ displayName: "", douyinName: "", gameName: "", note: "", isNewFan: true });
+      setQuickFanForm({ displayName: "", douyinName: "", gameName: "", note: "", fanType: "new_fan" });
       setEntryForm((current) => ({
         ...current,
         fanId: result.id,
-        status: quickFanForm.isNewFan ? "new_fan" : "normal",
+        status: quickFanForm.fanType === "new_fan" ? "new_fan" : "normal",
         tieOrder: current.tieOrder || String(boardEntries.length + 1)
       }));
       setNotice("粉丝已新增，可直接录入本场榜单。");
@@ -620,14 +620,14 @@ export function RankingManager({
             </label>
           </div>
           <div className="quick-fan-actions">
-            <button
-              className={quickFanForm.isNewFan ? "toggle-chip active" : "toggle-chip"}
-              onClick={() => patchQuickFanForm("isNewFan", !quickFanForm.isNewFan)}
-              type="button"
-            >
-              本场新粉
-            </button>
-            <button className="secondary-button" disabled={isLoading || !session?.streamerId} type="submit">
+            <label>
+              粉丝类型
+              <select onChange={(event) => patchQuickFanForm("fanType", event.target.value)} value={quickFanForm.fanType}>
+                <option value="new_fan">新粉</option>
+                <option value="old_fan">老粉</option>
+              </select>
+            </label>
+            <button className="primary-button" disabled={isLoading || !session?.streamerId} type="submit">
               新增并选中
             </button>
           </div>
