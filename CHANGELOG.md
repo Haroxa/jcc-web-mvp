@@ -94,6 +94,34 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-21 09:30 拆分 Worker 共享类型和工具模块
+#### 摘要
+
+- 新增 `worker/shared.ts`。
+- 将 Worker 的绑定类型、数据库行类型、ID/密码工具、状态归一化、数据转换、票务余额、榜单冻结和主播权限解析等共享逻辑从 `worker/index.ts` 拆出。
+- `worker/index.ts` 从约 2625 行降到约 1970 行，继续保留 Hono 应用、CORS 和 API 路由注册。
+
+#### 说明
+
+本次是后端模块化第一步，不改变 API 路由和业务行为。先把共享层移出，可以降低后续拆分账号、粉丝、场次、票务、榜单路由时的上下文负担。
+
+#### 验证结果
+
+- `npm run typecheck` 已通过。
+- `npm run build` 已通过。
+- `git diff --check` 已通过。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "拆分 Worker 共享类型和工具模块"
+git push origin main
+```
+
 ### 2026-06-21 09:07 拆分设置和主播账号管理页面组件
 #### 摘要
 
