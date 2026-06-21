@@ -94,6 +94,34 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-21 09:50 拆分 Worker 账号和认证路由
+#### 摘要
+
+- 新增 `worker/routes/accounts.ts`。
+- 将初始化、登录、登出、当前账号、主播账号列表、创建、编辑、启用/停用和重置密码路由从 `worker/index.ts` 拆出。
+- `worker/index.ts` 从约 1970 行降到约 1503 行，继续保留健康检查、CORS 和其它业务路由。
+
+#### 说明
+
+本次是后端路由模块化第一步，不改变 API 路径和业务行为。账号相关路由集中到独立注册函数后，后续可以继续按粉丝、场次、票务和榜单分组拆分。
+
+#### 验证结果
+
+- `npm run typecheck` 已通过。
+- `npm run build` 已通过。
+- `git diff --check` 已通过。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "拆分 Worker 账号和认证路由"
+git push origin main
+```
+
 ### 2026-06-21 09:30 拆分 Worker 共享类型和工具模块
 #### 摘要
 
