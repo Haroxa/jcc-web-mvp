@@ -59,9 +59,20 @@ export function registerSessionBoardRoutes(app: WorkerApp) {
          fans.display_name,
          fans.douyin_name,
          fans.statuses_json,
-         fans.cached_ticket_balance
+         fans.cached_ticket_balance,
+         COALESCE(ledger_totals.settled_withdraw, 0) AS settled_withdraw,
+         COALESCE(ledger_totals.settled_deposit, 0) AS settled_deposit
        FROM live_session_board_entries
        INNER JOIN fans ON fans.id = live_session_board_entries.fan_id
+       LEFT JOIN (
+         SELECT
+           fan_id,
+           SUM(CASE WHEN type = 'withdraw' THEN amount ELSE 0 END) AS settled_withdraw,
+           SUM(CASE WHEN type = 'deposit' THEN amount ELSE 0 END) AS settled_deposit
+         FROM ticket_ledgers
+         WHERE session_id = ? AND status = 'normal' AND type IN ('withdraw', 'deposit')
+         GROUP BY fan_id
+       ) ledger_totals ON ledger_totals.fan_id = live_session_board_entries.fan_id
        WHERE live_session_board_entries.session_id = ?
        ORDER BY
          CASE live_session_board_entries.status
@@ -77,7 +88,7 @@ export function registerSessionBoardRoutes(app: WorkerApp) {
          live_session_board_entries.tie_order ASC,
          live_session_board_entries.updated_at ASC`
     )
-      .bind(sessionId)
+      .bind(sessionId, sessionId)
       .all<LiveSessionBoardEntryRow>();
   
     const fans = await context.env.DB.prepare("SELECT * FROM fans WHERE streamer_id = ? ORDER BY updated_at DESC")
@@ -172,7 +183,17 @@ export function registerSessionBoardRoutes(app: WorkerApp) {
     const fanStatuses = parseStatuses(fan.statuses_json);
     const finalStatus = fanStatuses.includes("blacklisted") ? "blocked" : status;
     const currentBalance = await getFanTicketBalance(context.env.DB, fan.id);
-    const projectedBalance = currentBalance - ticketUsed + ticketDeposit;
+    const bookedRows = await context.env.DB.prepare(
+      `SELECT type, COALESCE(SUM(amount), 0) AS amount
+       FROM ticket_ledgers
+       WHERE session_id = ? AND fan_id = ? AND status = 'normal' AND type IN ('withdraw', 'deposit')
+       GROUP BY type`
+    )
+      .bind(session.id, fan.id)
+      .all<{ type: string; amount: number }>();
+    const bookedWithdraw = bookedRows.results.find((row) => row.type === "withdraw")?.amount ?? 0;
+    const bookedDeposit = bookedRows.results.find((row) => row.type === "deposit")?.amount ?? 0;
+    const projectedBalance = currentBalance - (ticketUsed - bookedWithdraw) + (ticketDeposit - bookedDeposit);
     if (projectedBalance < 0) {
       return context.json(jsonError(`结算后余额会变为 ${projectedBalance}，不能低于 0。`), 400);
     }

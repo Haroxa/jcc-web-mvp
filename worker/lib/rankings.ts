@@ -84,6 +84,8 @@ export function toRankingEntry(row: RankingEntryRow) {
 
 export function toBoardEntry(row: LiveSessionBoardEntryRow) {
   const score = boardCompetitionScore(row);
+  const settledWithdraw = row.settled_withdraw ?? 0;
+  const settledDeposit = row.settled_deposit ?? 0;
   return {
     id: row.id,
     sessionId: row.session_id,
@@ -97,7 +99,7 @@ export function toBoardEntry(row: LiveSessionBoardEntryRow) {
     ticketDeposit: row.ticket_deposit,
     manualAdjustment: row.manual_adjustment,
     competitionScore: score,
-    balancePreview: row.cached_ticket_balance - row.ticket_used + row.ticket_deposit,
+    balancePreview: row.cached_ticket_balance - (row.ticket_used - settledWithdraw) + (row.ticket_deposit - settledDeposit),
     status: row.status,
     tieOrder: row.tie_order,
     note: row.note,

@@ -38,6 +38,17 @@ export function registerTicketRoutes(app: WorkerApp) {
     }
   
     const fanId = context.req.query("fanId")?.trim() || null;
+    const page = Math.max(1, Number(context.req.query("page") || 1));
+    const pageSize = Math.min(50, Math.max(5, Number(context.req.query("pageSize") || 10)));
+    const offset = (page - 1) * pageSize;
+    const totalRow = await context.env.DB.prepare(
+      `SELECT COUNT(*) AS total
+       FROM ticket_ledgers
+       WHERE ticket_ledgers.streamer_id = ?
+         AND (? IS NULL OR ticket_ledgers.fan_id = ?)`
+    )
+      .bind(streamerId, fanId, fanId)
+      .first<{ total: number }>();
     const rows = await context.env.DB.prepare(
       `SELECT
          ticket_ledgers.*,
@@ -51,9 +62,9 @@ export function registerTicketRoutes(app: WorkerApp) {
        WHERE ticket_ledgers.streamer_id = ?
          AND (? IS NULL OR ticket_ledgers.fan_id = ?)
        ORDER BY ticket_ledgers.created_at DESC
-       LIMIT 200`
+       LIMIT ? OFFSET ?`
     )
-      .bind(streamerId, fanId, fanId)
+      .bind(streamerId, fanId, fanId, pageSize, offset)
       .all<TicketLedgerRow>();
   
     const fanRows = await context.env.DB.prepare(
@@ -76,9 +87,13 @@ export function registerTicketRoutes(app: WorkerApp) {
     return context.json({
       items: rows.results.map(toTicketLedger),
       fans: fanRows.results.map(toFan),
+      balanceFans: fanRows.results.filter((fan) => fan.cached_ticket_balance !== 0).map(toFan),
       sessions: sessionRows.results.map(toLiveSession),
       streamers,
-      activeStreamerId: streamerId
+      activeStreamerId: streamerId,
+      page,
+      pageSize,
+      total: totalRow?.total ?? 0
     });
   });
   
@@ -256,6 +271,64 @@ export function registerTicketRoutes(app: WorkerApp) {
       existing.streamer_id
     );
   
+    return context.json({ ok: true });
+  });
+
+  app.post("/api/tickets/:ledgerId/restore", async (context) => {
+    const account = await getCurrentAccount(context.env.DB, getCookie(context, sessionCookieName));
+    if (!account) {
+      return context.json(jsonError("请先登录。", 401), 401);
+    }
+
+    const ledgerId = context.req.param("ledgerId");
+    const existing = await context.env.DB.prepare("SELECT * FROM ticket_ledgers WHERE id = ?")
+      .bind(ledgerId)
+      .first<{
+        id: string;
+        streamer_id: string;
+        fan_id: string;
+        status: string;
+        type: string;
+        amount: number;
+      }>();
+    if (!existing) {
+      return context.json(jsonError("票务记录不存在。", 404), 404);
+    }
+
+    const { streamerId } = await resolveStreamerId(context.env.DB, account, existing.streamer_id);
+    if (streamerId !== existing.streamer_id) {
+      return context.json(jsonError("没有权限恢复该记录。", 403), 403);
+    }
+    if (existing.status !== "voided") {
+      return context.json(jsonError("只有已作废记录可以恢复。"), 400);
+    }
+
+    const currentBalance = await getFanTicketBalance(context.env.DB, existing.fan_id);
+    const nextBalance = currentBalance + ticketBalanceDelta(existing.type, existing.amount);
+    if (ticketAffectsBalance(existing.type) && nextBalance < 0) {
+      return context.json(jsonError(`恢复后余额会变为 ${nextBalance}，不能低于 0。`), 400);
+    }
+
+    await context.env.DB.prepare(
+      "UPDATE ticket_ledgers SET status = 'normal', voided_by = NULL, voided_at = NULL WHERE id = ?"
+    )
+      .bind(ledgerId)
+      .run();
+
+    if (ticketAffectsBalance(existing.type)) {
+      await refreshFanTicketBalance(context.env.DB, existing.fan_id);
+    }
+
+    await writeAuditLog(
+      context.env.DB,
+      toPublicAccount(account),
+      "restore_ticket_ledger",
+      "ticket_ledger",
+      ledgerId,
+      `恢复票务记录：${existing.type} ${existing.amount}`,
+      existing.streamer_id
+    );
+
     return context.json({ ok: true });
   });
 }

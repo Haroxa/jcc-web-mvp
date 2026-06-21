@@ -646,6 +646,91 @@ h1 {
   padding: 8px;
 }
 
+.ticket-fan-picker-list,
+.ticket-filter-list {
+  max-height: 160px;
+}
+
+.ticket-filter-panel {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.balance-rank-panel {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #f8fbfd;
+  padding: 8px;
+}
+
+.compact-panel-header {
+  margin-bottom: 0;
+}
+
+.compact-panel-header h2 {
+  font-size: 15px;
+}
+
+.balance-rank-list {
+  display: grid;
+  gap: 4px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.balance-rank-list button {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #142538;
+  cursor: pointer;
+  padding: 6px 8px;
+}
+
+.ticket-row {
+  border-left: 4px solid #d8e0e8;
+}
+
+.ticket-row-deposit {
+  border-left-color: #2f855a;
+}
+
+.ticket-row-withdraw {
+  border-left-color: #c05621;
+}
+
+.ticket-row-voided {
+  opacity: 0.72;
+}
+
+.ticket-type-pill {
+  display: inline-block;
+  min-width: 40px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: #e8f1f8;
+  color: #23537a;
+  font-size: 12px;
+  padding: 2px 7px;
+  text-align: center;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+
 .quick-fan-form {
   gap: 6px;
 }

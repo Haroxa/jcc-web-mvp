@@ -137,6 +137,8 @@ export type LiveSessionBoardEntryRow = {
   douyin_name: string | null;
   statuses_json: string;
   cached_ticket_balance: number;
+  settled_withdraw?: number;
+  settled_deposit?: number;
   gift_diamonds: number;
   ticket_used: number;
   ticket_deposit: number;
