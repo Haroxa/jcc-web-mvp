@@ -1,4 +1,4 @@
-﻿import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiRequest } from "../api/client";
 import { rankingStyleOptions } from "../constants";
 import type {
@@ -164,6 +164,15 @@ export function RankingManager({ account, contextSessionId = "" }: { account: Ac
     : 0;
   const isBoardReadOnly = session?.status === "settled" || session?.status === "cancelled";
 
+  const isSessionLive = session?.status === "live";
+  const canCreateRanking = Boolean(activeSessionId && isSessionLive && boardEntries.length > 0 && !isBoardReadOnly);
+  const rankingActionHint = !activeSessionId
+    ? "请先选择场次。"
+    : !isSessionLive
+      ? "开始直播后才能创建定榜。"
+      : boardEntries.length === 0
+        ? "先维护本场榜单，再创建定榜。"
+        : "创建后可开始三分钟倒计时。";
   function patchRankingForm(key: keyof RankingForm, value: string) {
     setRankingForm((current) => ({ ...current, [key]: value }));
   }
@@ -226,6 +235,11 @@ export function RankingManager({ account, contextSessionId = "" }: { account: Ac
 
   async function createRanking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canCreateRanking) {
+      setNotice(rankingActionHint);
+      return;
+    }
+
     setIsLoading(true);
     setNotice("");
 
@@ -272,9 +286,87 @@ export function RankingManager({ account, contextSessionId = "" }: { account: Ac
 
   return (
     <section className="ranking-workbench">
-      <div className="panel form-panel">
+      <section className="panel ranking-board-panel">
         <div className="panel-header">
-          <h2>本场榜单草稿</h2>
+          <h2>实时榜单</h2>
+          <span>{boardEntries.length}</span>
+        </div>
+
+        <div className="ranking-status-strip">
+          <div>
+            <strong>{session ? sessionStatusLabel(session.status) : "未选择场次"}</strong>
+            <span>{rankingActionHint}</span>
+          </div>
+          {countdownSnapshot ? <span>定榜倒计时 {formatDuration(countdownLeft)}</span> : <span>未开始倒计时</span>}
+        </div>
+
+        {boardEntries.length === 0 ? (
+          <div className="empty-workflow">
+            <strong>本场还没有榜单记录</strong>
+            <p>先在右侧选择粉丝，录入礼物、取票、存票或调整。保存后这里会成为主播现场主要查看区域。</p>
+          </div>
+        ) : null}
+
+        <BoardEntryGroup title="正常竞争榜" entries={normalEntries} />
+        <BoardEntryGroup title="本场新粉" entries={newFanEntries} emptyText="当前没有本场新粉。" />
+        <BoardEntryGroup title="待定" entries={pendingEntries} emptyText="没有待定粉丝。" />
+        <BoardEntryGroup title="有事不来" entries={awayEntries} emptyText="没有标记有事不来的粉丝。" />
+        <BoardEntryGroup title="禁赛/拉黑" entries={blockedEntries} emptyText="没有禁赛粉丝。" />
+
+        <div className="ranking-group">
+          <div className="ranking-group-title">
+            <strong>定榜记录</strong>
+            <span>{snapshots.length}</span>
+          </div>
+          {snapshots.length === 0 ? (
+            <p className="muted">还没有定榜记录。</p>
+          ) : (
+            <div className="account-list">
+              {snapshots.map((snapshot) => {
+                const left = snapshot.countdownEndsAt
+                  ? Math.max(0, Math.floor((new Date(snapshot.countdownEndsAt).getTime() - nowTick) / 1000))
+                  : 0;
+                return (
+                  <article className="account-row fan-row" key={snapshot.id}>
+                    <div>
+                      <strong>
+                        第 {snapshot.roundNo} 次 · {snapshot.title}
+                      </strong>
+                      <span>
+                        {rankingStyleLabel(snapshot.style)} · {rankingStatusLabel(snapshot.status)}
+                        {snapshot.status === "countdown" ? ` · 剩余 ${formatDuration(left)}` : ""}
+                      </span>
+                      <span>冻结：{formatDateTime(snapshot.frozenAt)}</span>
+                    </div>
+                    <div className="row-actions">
+                      <button
+                        className="secondary-button"
+                        disabled={isLoading || snapshot.status === "countdown"}
+                        onClick={() => updateSnapshotStatus(snapshot.id, "start_countdown")}
+                        type="button"
+                      >
+                        开始三分钟
+                      </button>
+                      <button
+                        className="secondary-button"
+                        disabled={isLoading}
+                        onClick={() => updateSnapshotStatus(snapshot.id, "freeze")}
+                        type="button"
+                      >
+                        按当前榜单冻结
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <div className="panel form-panel operation-rail">
+        <div className="panel-header">
+          <h2>操作面板</h2>
           <span>{session ? sessionStatusLabel(session.status) : "未选择"}</span>
         </div>
 
@@ -389,74 +481,12 @@ export function RankingManager({ account, contextSessionId = "" }: { account: Ac
             定榜名称
             <input onChange={(event) => patchRankingForm("title", event.target.value)} placeholder="留空自动生成" value={rankingForm.title} />
           </label>
-          <button className="primary-button" disabled={isLoading || !activeSessionId} type="submit">
+          <p className="muted">{rankingActionHint}</p>
+          <button className="primary-button" disabled={isLoading || !canCreateRanking} type="submit">
             创建定榜记录
           </button>
         </form>
       </div>
-
-      <section className="panel ranking-board-panel">
-        <div className="panel-header">
-          <h2>实时榜单</h2>
-          <span>{boardEntries.length}</span>
-        </div>
-
-        <BoardEntryGroup title="正常竞争榜" entries={normalEntries} />
-        <BoardEntryGroup title="本场新粉" entries={newFanEntries} emptyText="当前没有本场新粉。" />
-        <BoardEntryGroup title="待定" entries={pendingEntries} emptyText="没有待定粉丝。" />
-        <BoardEntryGroup title="有事不来" entries={awayEntries} emptyText="没有标记有事不来的粉丝。" />
-        <BoardEntryGroup title="禁赛/拉黑" entries={blockedEntries} emptyText="没有禁赛粉丝。" />
-
-        <div className="ranking-group">
-          <div className="ranking-group-title">
-            <strong>定榜记录</strong>
-            <span>{snapshots.length}</span>
-          </div>
-          {snapshots.length === 0 ? (
-            <p className="muted">还没有定榜记录。</p>
-          ) : (
-            <div className="account-list">
-              {snapshots.map((snapshot) => {
-                const left = snapshot.countdownEndsAt
-                  ? Math.max(0, Math.floor((new Date(snapshot.countdownEndsAt).getTime() - nowTick) / 1000))
-                  : 0;
-                return (
-                  <article className="account-row fan-row" key={snapshot.id}>
-                    <div>
-                      <strong>
-                        第 {snapshot.roundNo} 次 · {snapshot.title}
-                      </strong>
-                      <span>
-                        {rankingStyleLabel(snapshot.style)} · {rankingStatusLabel(snapshot.status)}
-                        {snapshot.status === "countdown" ? ` · 剩余 ${formatDuration(left)}` : ""}
-                      </span>
-                      <span>冻结：{formatDateTime(snapshot.frozenAt)}</span>
-                    </div>
-                    <div className="row-actions">
-                      <button
-                        className="secondary-button"
-                        disabled={isLoading || snapshot.status === "countdown"}
-                        onClick={() => updateSnapshotStatus(snapshot.id, "start_countdown")}
-                        type="button"
-                      >
-                        开始三分钟
-                      </button>
-                      <button
-                        className="secondary-button"
-                        disabled={isLoading}
-                        onClick={() => updateSnapshotStatus(snapshot.id, "freeze")}
-                        type="button"
-                      >
-                        按当前榜单冻结
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </section>
     </section>
   );
 }

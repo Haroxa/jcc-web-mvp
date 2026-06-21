@@ -390,10 +390,104 @@ h1 {
   gap: 18px;
 }
 
+.session-stage-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.session-stage-flow div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #64748b;
+  padding: 10px 12px;
+}
+
+.session-stage-flow strong {
+  color: #405366;
+  font-size: 14px;
+}
+
+.session-stage-flow span {
+  font-size: 12px;
+}
+
+.session-stage-flow .active {
+  border-color: #1f4f7a;
+  background: #e8f1f8;
+}
+
+.session-stage-flow .active strong,
+.session-stage-flow .done strong {
+  color: #163a5c;
+}
+
+.session-stage-flow .done {
+  background: #f8fbfd;
+}
+
 .ranking-workbench {
   display: grid;
-  grid-template-columns: minmax(340px, 0.72fr) minmax(0, 1.28fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
   gap: 18px;
+}
+
+.operation-rail {
+  position: sticky;
+  top: 18px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+}
+
+.ranking-status-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #f8fbfd;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+}
+
+.ranking-status-strip div {
+  display: grid;
+  gap: 4px;
+}
+
+.ranking-status-strip strong {
+  color: #142538;
+}
+
+.ranking-status-strip span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.empty-workflow {
+  display: grid;
+  gap: 6px;
+  border: 1px dashed #b8c9d9;
+  border-radius: 8px;
+  background: #f8fbfd;
+  color: #405366;
+  margin-bottom: 14px;
+  padding: 18px;
+}
+
+.empty-workflow strong {
+  color: #142538;
+}
+
+.empty-workflow p {
+  margin-bottom: 0;
+  color: #64748b;
+  line-height: 1.6;
 }
 
 .ranking-board-panel {
@@ -737,6 +831,7 @@ h1 {
   .page-header,
   .ranking-workbench,
   .session-context,
+  .session-stage-flow,
   .settings-grid,
   .work-area {
     display: grid;
@@ -745,6 +840,11 @@ h1 {
 
   .account-row {
     display: grid;
+  }
+
+  .operation-rail {
+    position: static;
+    max-height: none;
   }
 
   .row-actions {
@@ -767,7 +867,8 @@ h1 {
   }
 
   .nav-list,
-  .metric-grid {
+  .metric-grid,
+  .session-stage-flow {
     grid-template-columns: 1fr;
   }
 
@@ -779,6 +880,7 @@ h1 {
   .quick-actions .secondary-button,
   .session-context-actions .primary-button,
   .session-context-actions .secondary-button,
+  .session-stage-flow div,
   .workspace-tabs button {
     width: 100%;
   }

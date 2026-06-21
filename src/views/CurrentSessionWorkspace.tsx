@@ -60,6 +60,13 @@ export function CurrentSessionWorkspace({
   }
 
   const activeSession = sessions.find((session) => session.id === activeSessionId);
+  const stageSteps = [
+    { key: "preparing", label: "准备", detail: "开始直播" },
+    { key: "live", label: "直播中", detail: "维护榜单 / 定榜" },
+    { key: "pending_settlement", label: "待结算", detail: "核对票数" },
+    { key: "settled", label: "已结算", detail: "查看结果" }
+  ];
+  const activeStageIndex = stageSteps.findIndex((step) => step.key === activeSession?.status);
   const tabs: Array<{ key: WorkspaceTab; label: string }> = [
     { key: "ranking", label: "榜单/定榜" },
     { key: "lineup", label: "名单确认" },
@@ -229,6 +236,18 @@ export function CurrentSessionWorkspace({
           {renderSessionPrimaryAction()}
         </div>
       </section>
+
+      <div className="session-stage-flow">
+        {stageSteps.map((step, index) => (
+          <div
+            className={activeStageIndex >= 0 && index < activeStageIndex ? "done" : index === activeStageIndex ? "active" : ""}
+            key={step.key}
+          >
+            <strong>{step.label}</strong>
+            <span>{step.detail}</span>
+          </div>
+        ))}
+      </div>
 
       <div className="workspace-tabs">
         {tabs.map((tab) => (

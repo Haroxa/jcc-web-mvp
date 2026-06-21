@@ -291,7 +291,7 @@ export function App() {
       <main className="main">
         <header className="page-header">
           <div>
-            <p className="eyebrow">TypeScript + React + Drizzle</p>
+            <p className="eyebrow">JCC 直播场次管理</p>
             <h1>{pageTitle}</h1>
             <p className="header-copy">
               {isApiUnavailable
