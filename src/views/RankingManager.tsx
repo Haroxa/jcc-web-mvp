@@ -620,14 +620,13 @@ export function RankingManager({
             </label>
           </div>
           <div className="quick-fan-actions">
-            <label className="inline-check quick-new-fan-check">
-              <input
-                checked={quickFanForm.isNewFan}
-                onChange={(event) => patchQuickFanForm("isNewFan", event.target.checked)}
-                type="checkbox"
-              />
+            <button
+              className={quickFanForm.isNewFan ? "toggle-chip active" : "toggle-chip"}
+              onClick={() => patchQuickFanForm("isNewFan", !quickFanForm.isNewFan)}
+              type="button"
+            >
               本场新粉
-            </label>
+            </button>
             <button className="secondary-button" disabled={isLoading || !session?.streamerId} type="submit">
               新增并选中
             </button>
@@ -721,7 +720,7 @@ export function RankingManager({
           <label>
             状态
             <select onChange={(event) => patchEntryForm("status", event.target.value)} value={entryForm.status}>
-              <option value="normal">正常竞争</option>
+              <option value="normal">正常上榜</option>
               <option value="new_fan">本场新粉</option>
               <option value="away">有事不来</option>
               <option value="pending">待定</option>
@@ -740,7 +739,7 @@ export function RankingManager({
           </label>
 
           <button className="primary-button" disabled={isLoading || isBoardReadOnly || !activeSessionId || !entryForm.fanId} type="submit">
-            保存本场榜单
+            保存到榜单
           </button>
           {notice ? <p className="notice">{notice}</p> : null}
         </form>

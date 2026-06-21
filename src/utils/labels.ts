@@ -44,7 +44,7 @@ export function rankingStatusLabel(value: string) {
 }
 
 export function boardStatusLabel(value: string) {
-  if (value === "normal") return "正常竞争";
+  if (value === "normal") return "正常上榜";
   if (value === "new_fan") return "本场新粉";
   if (value === "away") return "有事不来";
   if (value === "pending") return "待定";

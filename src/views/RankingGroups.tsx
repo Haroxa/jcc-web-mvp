@@ -82,9 +82,11 @@ export function BoardEntryGroup({
               onClick={onSelectEntry ? () => onSelectEntry(entry.fanId) : undefined}
             >
               <div>
-                <strong>
+                <strong className="board-rank-cell">
                   <span className="rank-number">{index + 1}</span>
-                  {entry.displayName} {entry.competitionScore}
+                  <span className="board-fan-score">
+                    {entry.displayName} {entry.competitionScore}
+                  </span>
                 </strong>
               </div>
               <div>
