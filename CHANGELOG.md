@@ -94,6 +94,34 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-21 10:06 拆分 Worker 场次路由
+#### 摘要
+
+- 新增 `worker/routes/liveSessions.ts`。
+- 将直播场次列表、创建、编辑、开始直播、结束直播和确认结算路由从 `worker/index.ts` 拆出。
+- `worker/index.ts` 从约 1317 行降到约 897 行，继续保留票务、本场榜单和定榜路由。
+
+#### 说明
+
+本次仍是结构性拆分，不改变 API 路径和业务行为。场次生命周期与结算确认逻辑独立后，后续调整结算预览或异常提示时可以集中在场次模块内处理。
+
+#### 验证结果
+
+- `npm run typecheck` 已通过。
+- `npm run build` 已通过。
+- `git diff --check` 已通过。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "拆分 Worker 场次路由"
+git push origin main
+```
+
 ### 2026-06-21 09:59 拆分 Worker 粉丝路由
 #### 摘要
 
