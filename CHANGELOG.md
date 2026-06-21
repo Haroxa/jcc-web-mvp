@@ -94,6 +94,34 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-21 10:14 拆分 Worker 票务路由
+#### 摘要
+
+- 新增 `worker/routes/tickets.ts`。
+- 将票务流水列表、新增票务流水和作废票务流水路由从 `worker/index.ts` 拆出。
+- `worker/index.ts` 从约 897 行降到约 660 行，继续保留本场榜单和定榜路由。
+
+#### 说明
+
+本次只做结构拆分，不改变票务余额校验、入账、作废和审计日志逻辑。票务路由独立后，后续处理票务规则和结算预览时能更集中。
+
+#### 验证结果
+
+- `npm run typecheck` 已通过。
+- `npm run build` 已通过。
+- `git diff --check` 已通过。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "拆分 Worker 票务路由"
+git push origin main
+```
+
 ### 2026-06-21 10:06 拆分 Worker 场次路由
 #### 摘要
 
