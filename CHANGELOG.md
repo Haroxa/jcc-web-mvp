@@ -94,6 +94,34 @@ git show --stat
 
 ## 变更记录
 
+### 2026-06-21 09:07 拆分设置和主播账号管理页面组件
+#### 摘要
+
+- 新增 `src/views/SettingsView.tsx`。
+- 将设置权限判断、主播账号列表、创建、编辑、停用/启用和重置密码交互从 `src/App.tsx` 拆出。
+- `src/App.tsx` 从约 1064 行进一步降到约 683 行，入口文件主要保留登录、导航、今日工作台和管理首页壳层。
+
+#### 说明
+
+本次是结构性拆分，不改变账号管理业务行为。设置页独立后，前端入口文件继续降噪，后续可以更集中地处理今日工作台、管理首页和后端 `worker/index.ts` 的模块化。
+
+#### 验证结果
+
+- `npm run typecheck` 已通过。
+- `npm run build` 已通过。
+- `git diff --check` 已通过。
+
+#### 本次变更的 Git 命令
+
+```powershell
+npm run typecheck
+npm run build
+git diff --check
+git add .
+git commit -m "拆分设置和主播账号管理页面组件"
+git push origin main
+```
+
 ### 2026-06-20 23:58 拆分场次和粉丝管理页面组件
 #### 摘要
 
