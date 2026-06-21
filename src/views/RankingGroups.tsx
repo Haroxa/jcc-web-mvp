@@ -47,12 +47,14 @@ export function BoardEntryGroup({
   title,
   entries,
   emptyText = "当前分区还没有粉丝。",
-  fixedRows = false
+  fixedRows = false,
+  onSelectEntry
 }: {
   title: string;
   entries: BoardEntryItem[];
   emptyText?: string;
   fixedRows?: boolean;
+  onSelectEntry?: (fanId: string) => void;
 }) {
   const tableClassName = fixedRows ? "board-table fixed-board-table" : "board-table";
 
@@ -74,7 +76,11 @@ export function BoardEntryGroup({
           </div>
           {entries.length === 0 ? <p className="muted board-empty">{emptyText}</p> : null}
           {entries.map((entry, index) => (
-            <article className="board-row" key={entry.id}>
+            <article
+              className={onSelectEntry ? "board-row board-row-action" : "board-row"}
+              key={entry.id}
+              onClick={onSelectEntry ? () => onSelectEntry(entry.fanId) : undefined}
+            >
               <div>
                 <strong>
                   <span className="rank-number">{index + 1}</span>

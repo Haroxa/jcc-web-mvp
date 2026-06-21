@@ -34,6 +34,7 @@ export function RankingManager({
   const [sessions, setSessions] = useState<LiveSessionItem[]>([]);
   const [activeSessionId, setActiveSessionId] = useState(contextSessionId);
   const [activeSnapshotId, setActiveSnapshotId] = useState("");
+  const [fanSearch, setFanSearch] = useState("");
   const [rankingForm, setRankingForm] = useState<RankingForm>({
     sessionId: contextSessionId,
     roundNo: "",
@@ -50,6 +51,12 @@ export function RankingManager({
     status: "normal",
     tieOrder: "",
     note: ""
+  });
+  const [quickFanForm, setQuickFanForm] = useState({
+    displayName: "",
+    douyinName: "",
+    note: "",
+    isNewFan: true
   });
   const [notice, setNotice] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -155,6 +162,14 @@ export function RankingManager({
 
   const activeSnapshot = snapshots.find((snapshot) => snapshot.id === activeSnapshotId) ?? snapshots[0];
   const selectedFan = fans.find((fan) => fan.id === entryForm.fanId);
+  const normalizedFanSearch = fanSearch.trim().toLowerCase();
+  const filteredFans = normalizedFanSearch
+    ? fans.filter((fan) =>
+        [fan.displayName, fan.douyinName, fan.wechatName, fan.gameName]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(normalizedFanSearch))
+      )
+    : fans;
   const quickGift = toInteger(entryForm.giftDiamonds);
   const quickTicket = toInteger(entryForm.ticketUsed);
   const quickDeposit = toInteger(entryForm.depositAmount);
@@ -211,8 +226,14 @@ export function RankingManager({
     setEntryForm((current) => ({ ...current, [key]: value }));
   }
 
+  function patchQuickFanForm(key: keyof typeof quickFanForm, value: string | boolean) {
+    setQuickFanForm((current) => ({ ...current, [key]: value }));
+  }
+
   function selectBoardFan(fanId: string) {
     const currentEntry = boardEntries.find((entry) => entry.fanId === fanId);
+    const fan = fans.find((item) => item.id === fanId);
+    setFanSearch(fan?.displayName ?? "");
     setEntryForm((current) => ({
       ...current,
       fanId,
@@ -224,6 +245,13 @@ export function RankingManager({
       tieOrder: currentEntry ? String(currentEntry.tieOrder || "") : "",
       note: currentEntry?.note ?? ""
     }));
+  }
+
+  function bumpEntryNumber(key: keyof Pick<RankingEntryForm, "giftDiamonds" | "ticketUsed" | "depositAmount" | "manualAdjustment">, delta: number) {
+    setEntryForm((current) => {
+      const nextValue = delta === 0 ? 0 : toInteger(current[key]) + delta;
+      return { ...current, [key]: String(nextValue) };
+    });
   }
 
   async function saveBoardEntry(event: FormEvent<HTMLFormElement>) {
@@ -258,6 +286,42 @@ export function RankingManager({
       await loadBoard(activeSessionId);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "保存失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function createQuickFan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session?.streamerId) {
+      setNotice("请先选择场次后再新增粉丝。");
+      return;
+    }
+
+    setIsLoading(true);
+    setNotice("");
+    try {
+      const result = await apiRequest<{ ok: boolean; id: string }>("/api/fans", {
+        method: "POST",
+        body: JSON.stringify({
+          streamerId: session.streamerId,
+          displayName: quickFanForm.displayName,
+          douyinName: quickFanForm.douyinName,
+          note: quickFanForm.note,
+          statuses: quickFanForm.isNewFan ? ["new_fan"] : []
+        })
+      });
+      setQuickFanForm({ displayName: "", douyinName: "", note: "", isNewFan: true });
+      setEntryForm((current) => ({
+        ...current,
+        fanId: result.id,
+        status: quickFanForm.isNewFan ? "new_fan" : "normal",
+        tieOrder: current.tieOrder || String(boardEntries.length + 1)
+      }));
+      setNotice("粉丝已新增，可直接录入本场榜单。");
+      await loadBoard(activeSessionId);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "新增粉丝失败");
     } finally {
       setIsLoading(false);
     }
@@ -435,11 +499,11 @@ export function RankingManager({
           </div>
         ) : null}
 
-        <BoardEntryGroup title="正常榜单" entries={normalEntries} fixedRows />
-        <BoardEntryGroup title="本场新粉" entries={newFanEntries} emptyText="当前没有本场新粉。" />
-        <BoardEntryGroup title="待定" entries={pendingEntries} emptyText="没有待定粉丝。" />
-        <BoardEntryGroup title="有事不来" entries={awayEntries} emptyText="没有标记有事不来的粉丝。" />
-        <BoardEntryGroup title="禁赛/拉黑" entries={blockedEntries} emptyText="没有禁赛粉丝。" />
+        <BoardEntryGroup title="正常榜单" entries={normalEntries} fixedRows onSelectEntry={selectBoardFan} />
+        <BoardEntryGroup title="本场新粉" entries={newFanEntries} emptyText="当前没有本场新粉。" onSelectEntry={selectBoardFan} />
+        <BoardEntryGroup title="待定" entries={pendingEntries} emptyText="没有待定粉丝。" onSelectEntry={selectBoardFan} />
+        <BoardEntryGroup title="有事不来" entries={awayEntries} emptyText="没有标记有事不来的粉丝。" onSelectEntry={selectBoardFan} />
+        <BoardEntryGroup title="禁赛/拉黑" entries={blockedEntries} emptyText="没有禁赛粉丝。" onSelectEntry={selectBoardFan} />
 
         <div className="ranking-group">
           <div className="ranking-group-title">
@@ -516,39 +580,124 @@ export function RankingManager({
           </select>
         </label>
 
+        <form className="form-panel nested-form quick-fan-form" onSubmit={createQuickFan}>
+          <div className="panel-header">
+            <h2>快速新增粉丝</h2>
+            <span>直播中</span>
+          </div>
+          <div className="quick-fan-grid">
+            <label>
+              粉丝名
+              <input
+                onChange={(event) => patchQuickFanForm("displayName", event.target.value)}
+                placeholder="直播间常用称呼"
+                required
+                value={quickFanForm.displayName}
+              />
+            </label>
+            <label>
+              抖音名
+              <input
+                onChange={(event) => patchQuickFanForm("douyinName", event.target.value)}
+                placeholder="可先填一个"
+                value={quickFanForm.douyinName}
+              />
+            </label>
+          </div>
+          <div className="quick-fan-grid">
+            <label className="inline-check quick-new-fan-check">
+              <input
+                checked={quickFanForm.isNewFan}
+                onChange={(event) => patchQuickFanForm("isNewFan", event.target.checked)}
+                type="checkbox"
+              />
+              本场新粉
+            </label>
+            <label>
+              备注
+              <input
+                onChange={(event) => patchQuickFanForm("note", event.target.value)}
+                placeholder="补充游戏名或说明"
+                value={quickFanForm.note}
+              />
+            </label>
+          </div>
+          <button className="secondary-button" disabled={isLoading || !session?.streamerId} type="submit">
+            新增并选中
+          </button>
+        </form>
+
         <form className="form-panel nested-form" onSubmit={saveBoardEntry}>
           <div className="panel-header">
             <h2>快速编辑</h2>
             <span>{selectedFan ? `当前余额 ${selectedFan.cachedTicketBalance}` : "粉丝"}</span>
           </div>
 
-          <label>
+          <div className="fan-picker">
             粉丝
-            <select onChange={(event) => selectBoardFan(event.target.value)} required value={entryForm.fanId}>
-              {fans.map((fan) => (
-                <option key={fan.id} value={fan.id}>
-                  {fan.displayName}（余额 {fan.cachedTicketBalance}）
-                </option>
-              ))}
-            </select>
-          </label>
+            <input
+              onChange={(event) => setFanSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.preventDefault();
+              }}
+              placeholder="搜索昵称、抖音、微信、游戏名"
+              value={fanSearch}
+            />
+            <div className="fan-picker-list">
+              {filteredFans.length === 0 ? (
+                <span className="fan-picker-empty">没有匹配粉丝，可先快速新增。</span>
+              ) : (
+                filteredFans.map((fan) => (
+                  <button
+                    className={fan.id === entryForm.fanId ? "fan-picker-option active" : "fan-picker-option"}
+                    key={fan.id}
+                    onClick={() => selectBoardFan(fan.id)}
+                    type="button"
+                  >
+                    <strong>{fan.displayName}</strong>
+                    <span>余额 {fan.cachedTicketBalance}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
 
           <div className="score-grid">
             <label>
               礼物钻
               <input inputMode="numeric" onChange={(event) => patchEntryForm("giftDiamonds", event.target.value)} placeholder="0" value={entryForm.giftDiamonds} />
+              <span className="score-shortcuts">
+                <button onClick={() => bumpEntryNumber("giftDiamonds", 100)} type="button">+100</button>
+                <button onClick={() => bumpEntryNumber("giftDiamonds", 500)} type="button">+500</button>
+                <button onClick={() => bumpEntryNumber("giftDiamonds", 0)} type="button">清零</button>
+              </span>
             </label>
             <label>
               取票
               <input inputMode="numeric" onChange={(event) => patchEntryForm("ticketUsed", event.target.value)} placeholder="0" value={entryForm.ticketUsed} />
+              <span className="score-shortcuts">
+                <button onClick={() => bumpEntryNumber("ticketUsed", 100)} type="button">+100</button>
+                <button onClick={() => bumpEntryNumber("ticketUsed", 500)} type="button">+500</button>
+                <button onClick={() => bumpEntryNumber("ticketUsed", 0)} type="button">清零</button>
+              </span>
             </label>
             <label>
               存票
               <input inputMode="numeric" onChange={(event) => patchEntryForm("depositAmount", event.target.value)} placeholder="0" value={entryForm.depositAmount} />
+              <span className="score-shortcuts">
+                <button onClick={() => bumpEntryNumber("depositAmount", 100)} type="button">+100</button>
+                <button onClick={() => bumpEntryNumber("depositAmount", 500)} type="button">+500</button>
+                <button onClick={() => bumpEntryNumber("depositAmount", 0)} type="button">清零</button>
+              </span>
             </label>
             <label>
               调整
               <input inputMode="numeric" onChange={(event) => patchEntryForm("manualAdjustment", event.target.value)} value={entryForm.manualAdjustment} />
+              <span className="score-shortcuts">
+                <button onClick={() => bumpEntryNumber("manualAdjustment", 100)} type="button">+100</button>
+                <button onClick={() => bumpEntryNumber("manualAdjustment", -100)} type="button">-100</button>
+                <button onClick={() => bumpEntryNumber("manualAdjustment", 0)} type="button">清零</button>
+              </span>
             </label>
           </div>
 
@@ -579,7 +728,7 @@ export function RankingManager({
             <textarea onChange={(event) => patchEntryForm("note", event.target.value)} placeholder="例如：临时不玩、补票约定、游戏名" rows={2} value={entryForm.note} />
           </label>
 
-          <button className="primary-button" disabled={isLoading || isBoardReadOnly || !activeSessionId || !fans.length} type="submit">
+          <button className="primary-button" disabled={isLoading || isBoardReadOnly || !activeSessionId || !entryForm.fanId} type="submit">
             保存本场榜单
           </button>
           {notice ? <p className="notice">{notice}</p> : null}
